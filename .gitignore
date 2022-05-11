@@ -50,3 +50,14 @@ modules.order
 Module.symvers
 Mkfile.old
 dkms.conf
+
+# other
+*.wav
+eq
+line
+play
+record
+*.pem
+*.raw
+wave
+yummyBasic
