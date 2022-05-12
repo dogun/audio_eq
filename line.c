@@ -5,12 +5,12 @@
 #define max(a,b) (((a) > (b)) ? (a) : (b))
 #define min(a,b) (((a) < (b)) ? (a) : (b))
 
-int main(int argc, char *argv[]) {
-	char * buffer;
+int main(int argc, char* argv[]) {
+	char* buffer;
 	int size = 0;
 	int rc;
 	
-	char * channel;
+	char* channel;
 	int sample = 100;
 	if (argc < 3) {
 		fprintf(stderr, "usage line l/r sample\n");
@@ -20,7 +20,7 @@ int main(int argc, char *argv[]) {
 	sample = atoi(argv[2]);
 	
 	size = FRAME_SIZE * FRAME_BUFFER_X;
-	buffer = (char *)malloc(size);
+	buffer = (char*)malloc(size);
 
 	fprintf(stderr, "line buffer size: %d frames: %d\n", size, FRAME_SIZE);
 	
@@ -29,7 +29,7 @@ int main(int argc, char *argv[]) {
 	int data_1 = 0;
 	int data_2 = 0;
 	int t_data = 0;
-	int *t_buffer;
+	int* t_buffer;
 
 	while(1) {
 		rc = fread(buffer, 1, size, stdin);

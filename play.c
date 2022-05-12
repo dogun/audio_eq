@@ -2,16 +2,16 @@
 #include <stdlib.h>
 #include "snd.h"
 
-int main(int argc, char *argv[]) {
+int main(int argc, char* argv[]) {
 	int rc;
-	snd_pcm_t * handle;
+	snd_pcm_t* handle;
 
-	char * buffer;
+	char* buffer;
 	snd_pcm_uframes_t frames;
 	
 	int size = 0;
 	
-	char *hw;
+	char* hw;
 	if (argc < 2) {
 		fprintf(stderr, "usage play hw:0\n");
 		exit(1);
@@ -21,7 +21,7 @@ int main(int argc, char *argv[]) {
 	frames = c_snd_pcm(&handle, hw, 0);
 
 	size = frames * FRAME_BUFFER_X;
-	buffer = (char *) malloc(size);
+	buffer = (char*) malloc(size);
 
 	fprintf(stderr, "play buffer size: %d frames: %ld\n", size, frames);
 

@@ -34,21 +34,21 @@ typedef struct WaveHeader {
 } wave_header_t;
  
 typedef struct WaveStruct {
-	FILE *fp;                  //file pointer
+	FILE* fp;                  //file pointer
 	wave_header_t header;      //header
 	uint8 data_flag[4];        //数据标识符
 	uint32 length;             //采样数据总数
-	uint32 *pData;             //data
+	uint32* pData;             //data
 } wave_t;
 wave_t wave;
 
 /*
  * open *.wav file
  */
-void WaveOpen(char *file) {
+void WaveOpen(char* file) {
 	uchar temp = 0;
 	uint8 read_bytes = 0;
-	char *channel_mappings[] = {NULL,"mono","stereo"};
+	char* channel_mappings[] = {NULL,"mono","stereo"};
 	uint32 total_time = 0;
 	struct PlayTime        //播放时间
 	{
@@ -178,8 +178,8 @@ int GetWave(void) {
 	}
 }
 
-void main(int argc, char *argv[]) {
-	char *wav;
+void main(int argc, char* argv[]) {
+	char* wav;
 	if (argc < 2) {
 		fprintf(stderr, "usage wave file\n");
 		exit(1);

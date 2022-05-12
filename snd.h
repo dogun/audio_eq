@@ -8,8 +8,8 @@
 #define CHANNEL 2
 #define FRAME_BUFFER_X (SAMPLE_SIZE / 8 * CHANNEL)
 
-snd_pcm_uframes_t c_snd_pcm(snd_pcm_t ** handle, char *hw, int record) {
-	snd_pcm_hw_params_t * params;
+snd_pcm_uframes_t c_snd_pcm(snd_pcm_t** handle, char* hw, int record) {
+	snd_pcm_hw_params_t* params;
 	
 	unsigned int val = RATE;
 	int dir = 0;

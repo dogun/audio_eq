@@ -27,24 +27,24 @@ typedef struct t_biquad t_biquad;
 struct t_biquad {
 	double a0, a1, a2, a3, a4;
 	double x1, x2, y1, y2;
-	double cf, bw, gain;
+	double cf, q, gain;
 };
 
 typedef struct eq_config eq_config;
 struct eq_config {
-	double cf, bw, gain;
+	double cf, q, gain;
 };
 
 static void process_eq(char* buf, int len, double vol);
 static void load_eq_config();
 
-static inline double _apply_biquads_one(double s, t_biquad *b);
-static inline void _apply_biquads(int *src, int *dst, int len, double vol);
+static inline double _apply_biquads_one(double s, t_biquad* b);
+static inline void _apply_biquads(int* src, int* dst, int len, double vol);
 
 static void _check_eq_config();
-static int _load_config(char *config_file, eq_config *eq, long *config_time, int *eq_len);
+static int _load_config(char* config_file, eq_config* eq, long* config_time, int* eq_len);
 static void _build_biquad_list();
-static void _mk_biquad(double dbgain, double cf, double bw, t_biquad *b);
+static void _mk_biquad(double dbgain, double cf, double q, t_biquad *b);
 
 static eq_config eq_r[MAX_EQ_COUNT];
 int eq_len_r;
@@ -57,7 +57,7 @@ long config_time_l = 0;
 static t_biquad r_biquads[MAX_EQ_COUNT];
 static t_biquad l_biquads[MAX_EQ_COUNT];
 
-static void load_eq_config(char *eq_file) {
+static void load_eq_config(char* eq_file) {
 	strcpy(eq_file_prefix, eq_file);
 	
 	strcpy(eq_file_l, eq_file_prefix);
@@ -81,9 +81,9 @@ static void _check_eq_config() {
 }
 
 /*
-  fc gain bw
+  fc gain q
  */
-static int _load_config(char *config_file, eq_config *eq, long *config_time, int *eq_len) {
+static int _load_config(char* config_file, eq_config* eq, long* config_time, int* eq_len) {
 	struct stat st;
 	int res;
 	res = stat(config_file, &st);
@@ -97,7 +97,7 @@ static int _load_config(char *config_file, eq_config *eq, long *config_time, int
 	}
 	fprintf(stderr, "reload config:%s\n", config_file);
 	
-	FILE *fp = fopen(config_file, "r");
+	FILE* fp = fopen(config_file, "r");
 	if (fp == NULL) {
 		fprintf(stderr, "open eq config error:%s\n", config_file);
 		exit(1);
@@ -105,17 +105,15 @@ static int _load_config(char *config_file, eq_config *eq, long *config_time, int
 	char line[200];
 	(*eq_len) = 0;
 	while(!feof(fp)) {
-		char *r = fgets(line, sizeof(line), fp);
-		if (r == NULL || strlen(r) == 0) break;
-		char *token = strtok(line, " ");
-		int cf, gain, bw;
+		char* r = fgets(line, sizeof(line), fp);
+		if (r == NULL || strlen(r) == 0) continue;
+		char* token = strtok(line, " ");
 		int i = 0;
 		while (token != NULL) {
 			//printf("--%s, %d\n", token, i);
 			if (i == 0) eq[*eq_len].cf = atof(token);
 			else if (i == 1) eq[*eq_len].gain = atof(token);
-			else if (i == 2) eq[*eq_len].bw = atof(token);
-			else break;
+			else if (i == 2) eq[*eq_len].q = atof(token);
 			i++;
 			token = strtok(NULL, " ");
 		}
@@ -130,13 +128,13 @@ static void _build_biquad_list() {
 	int i;
 	fprintf(stderr, "l eq size:%d, r eq size:%d\n", eq_len_l, eq_len_r);
 	for (i = 0; i < eq_len_l; ++i) {
-		_mk_biquad(eq_l[i].gain, eq_l[i].cf, eq_l[i].bw, &(l_biquads[i]));
-		fprintf(stderr, "l: cf %f, gain %f, bw %f\n", eq_l[i].cf, eq_l[i].gain, eq_l[i].bw);
+		_mk_biquad(eq_l[i].gain, eq_l[i].cf, eq_l[i].q, &(l_biquads[i]));
+		fprintf(stderr, "l: cf %f, gain %f, q %f\n", eq_l[i].cf, eq_l[i].gain, eq_l[i].q);
 	}
 	
 	for (i = 0; i < eq_len_r; ++i) {
-		_mk_biquad(eq_r[i].gain, eq_r[i].cf, eq_r[i].bw, &(r_biquads[i]));
-		fprintf(stderr, "r: cf %f, gain %f, bw %f\n", eq_r[i].cf, eq_r[i].gain, eq_r[i].bw);
+		_mk_biquad(eq_r[i].gain, eq_r[i].cf, eq_r[i].q, &(r_biquads[i]));
+		fprintf(stderr, "r: cf %f, gain %f, q %f\n", eq_r[i].cf, eq_r[i].gain, eq_r[i].q);
 	}
 }
 
@@ -145,7 +143,7 @@ static void _build_biquad_list() {
  */
 static void process_eq(char* buf, int len, double vol) {
 	int size = len / 4;
-	int *ibuf = (int*)buf;
+	int* ibuf = (int*)buf;
 	_check_eq_config();
 	_apply_biquads(ibuf, ibuf, size, vol);
 }
@@ -155,14 +153,14 @@ static void process_eq(char* buf, int len, double vol) {
  * It is safe to have the same input and output buffer.
  * len = 实际按照int的长度
  */
-static inline void _apply_biquads(int *src, int *dst, int len, double vol) {
+static inline void _apply_biquads(int* src, int* dst, int len, double vol) {
 	int i, di;
-	
+
 	if (len % 2 != 0) {
 		fprintf(stderr, "buffer len error: %d\n", len);
 		exit(1);
 	}
-	
+
 	for (i = 0; i < len / 2; ++i) {
 		double l_s = (double)*src++ * PREAMPF * vol;
 		double r_s = (double)*src++ * PREAMPF * vol;
@@ -184,8 +182,8 @@ static inline void _apply_biquads(int *src, int *dst, int len, double vol) {
 	}
 }
 
-static inline double _apply_biquads_one(double s, t_biquad *b) {
-	//printf("----b: %f %f %f addr:%d\n", b->cf,b->bw, b->gain, b);
+static inline double _apply_biquads_one(double s, t_biquad* b) {
+	//printf("----b: %f %f %f addr:%d\n", b->cf,b->q, b->gain, b);
 	double f =
 		s * b->a0 \
 		+ b->a1 * b->x1 \
@@ -205,27 +203,28 @@ static inline double _apply_biquads_one(double s, t_biquad *b) {
 /* Create a Peaking EQ Filter.
  * See 'Audio EQ Cookbook' for more information
  */
-static void _mk_biquad(double dbgain, double cf, double bw, t_biquad *b) {
+static void _mk_biquad(double dbgain, double cf, double q, t_biquad* b) {
   if(b == NULL) {
 	  fprintf(stderr, "biquad NULL\n");
 	  exit(1);
   }
 
-  double A = powf(10.0f, dbgain / 40.0f);
+  double A = pow(10.0, dbgain / 40.0);
   double omega = TWOPI * cf / RATE;
   double sn = sin(omega);
   double cs = cos(omega);
-  double alpha = sn * sinh(M_LN2 / 2.0f * bw * omega / sn);
+  //double alpha = sn * sinh(M_LN2 / 2.0f * bw * omega / sn);  //use band width
+  double alpha = sn / (2 * q);
 
   double alpha_m_A = alpha * A;
   double alpha_d_A = alpha / A;
 
-  double b0 = 1.0f + alpha_m_A;
-  double b1 = -2.0f * cs;
-  double b2 = 1.0f - alpha_m_A;
-  double a0 = 1.0f + alpha_d_A;
+  double b0 = 1.0 + alpha_m_A;
+  double b1 = -2.0 * cs;
+  double b2 = 1.0 - alpha_m_A;
+  double a0 = 1.0 + alpha_d_A;
   double a1 = b1;
-  double a2 = 1.0f - alpha_d_A;
+  double a2 = 1.0 - alpha_d_A;
 
   b->a0 = b0 / a0;
   b->a1 = b1 / a0;
@@ -233,12 +232,12 @@ static void _mk_biquad(double dbgain, double cf, double bw, t_biquad *b) {
   b->a3 = a1 / a0;
   b->a4 = a2 / a0;
 
-  b->x1 = 0.0f;
-  b->x2 = 0.0f;
-  b->y1 = 0.0f;
-  b->y2 = 0.0f;
+  b->x1 = 0.0;
+  b->x2 = 0.0;
+  b->y1 = 0.0;
+  b->y2 = 0.0;
 
   b->cf = cf;
-  b->bw = bw;
+  b->q = q;
   b->gain = dbgain;
 }

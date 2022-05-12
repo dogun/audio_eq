@@ -2,14 +2,14 @@
 #include <stdlib.h>
 #include "eq.h"
 
-int main(int argc, char *argv[]) {
+int main(int argc, char* argv[]) {
 	int rc;
 
-	char * buffer;
+	char* buffer;
 
 	int size = 0;
 	
-	char *eq_file;
+	char* eq_file;
 	double vol;
 	if (argc < 3) {
 		fprintf(stderr, "usage eq eq_file vol\n");
@@ -17,7 +17,7 @@ int main(int argc, char *argv[]) {
 	}
 
 	eq_file = argv[1];
-	char *s_vol = argv[2];
+	char* s_vol = argv[2];
 	vol = atof(s_vol) / 100;
 
 	size = FRAME_SIZE * FRAME_BUFFER_X;

@@ -2,17 +2,17 @@
 #include <stdlib.h>
 #include "snd.h"
 
-int main(int argc, char *argv[]) {
+int main(int argc, char* argv[]) {
 	int rc;
-	snd_pcm_t * handle;
+	snd_pcm_t* handle;
 
-	char * buffer;
+	char* buffer;
 	snd_pcm_uframes_t frames;
 	
 	int size = 0;
 	int time = 0;
 
-	char *hw;
+	char* hw;
 	if (argc < 3) {
 		fprintf(stderr, "usage record hw:0 time\n");
 		exit(1);
@@ -23,7 +23,7 @@ int main(int argc, char *argv[]) {
 	frames = c_snd_pcm(&handle, hw, 1);
 
 	size = frames * FRAME_BUFFER_X;
-	buffer = (char *)malloc(size);
+	buffer = (char*)malloc(size);
 	
 	float frame_cnt = time * RATE / frames;
 
