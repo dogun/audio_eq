@@ -24,11 +24,11 @@ if ($eq) {
 	$eq_r = @$_REQUEST['eq_r'];
 	$eq_l = trim($eq_l);
 	$eq_r = trim($eq_r);
-	if ($eq_l) file_put_contents("${HOME}/${eq}_l.conf", $eq_l) or die('err');
-	if ($eq_r) file_put_contents("${HOME}/${eq}_r.conf", $eq_r) or die('err1');
+	if ($eq_l) file_put_contents("${HOME}/config/${eq}_l.conf", $eq_l) or die('err');
+	if ($eq_r) file_put_contents("${HOME}/config/${eq}_r.conf", $eq_r) or die('err1');
 
-	$eq_l = @file_get_contents("${HOME}/${eq}_l.conf");
-	$eq_r = @file_get_contents("${HOME}/${eq}_r.conf");
+	$eq_l = @file_get_contents("${HOME}/config/${eq}_l.conf");
+	$eq_r = @file_get_contents("${HOME}/config/${eq}_r.conf");
 }
 
 ?>

@@ -13,12 +13,12 @@ $pwave = $HOME.$pfile;
 $rwave = $HOME.$rfile;
 
 $play_cmd = 'cat';
-if (strstr($pwave, 'wav')) $play_cmd = $HOME.'/wave';
-$play_cmd = "$play_cmd $pwave | $HOME/play $hw";
+if (strstr($pwave, 'wav')) $play_cmd = $HOME.'/bin/wave';
+$play_cmd = "$play_cmd $pwave | $HOME/bin/play $hw";
 if ($eq)
-	$play_cmd = "$play_cmd $pwave | $HOME/eq $eq 80 | $HOME/play $hw";
+	$play_cmd = "$play_cmd $pwave | $HOME/bin/eq config/$eq 80 | $HOME/bin/play $hw";
 
-$record_cmd = "$HOME/record $hw $duration > $rwave";
+$record_cmd = "$HOME/bin/record $hw $duration > $rwave";
 
 if ($action == 'play') {
 	$cmd = $play_cmd;

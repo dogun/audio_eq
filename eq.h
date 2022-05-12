@@ -14,7 +14,7 @@
 
 #define TWOPI (2.0 * M_PI)
 #define PREAMP -5.0f
-#define PREAMPF powf(10.0f, PREAMP / 20.0f)
+#define PREAMPF pow(10.0f, PREAMP / 20.0f)
 #define MAX_EQ_COUNT 32
 #define CONFIG_FILE_R_SUFFIX "_r.conf"
 #define CONFIG_FILE_L_SUFFIX "_l.conf"

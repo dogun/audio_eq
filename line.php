@@ -14,11 +14,11 @@ if (!file_exists($wave)) {
 }
 
 $play_cmd = 'cat';
-if (strstr($wave, 'wav')) $play_cmd = $HOME.'/wave';
+if (strstr($wave, 'wav')) $play_cmd = $HOME.'/bin/wave';
 
-$cmd = "$play_cmd $wave | $HOME/line $channel $sample";
+$cmd = "$play_cmd $wave | $HOME/bin/line $channel $sample";
 if ($eq)
-	$cmd = "$play_cmd $wave | $HOME/eq $eq 80 | $HOME/line $channel $sample";
+	$cmd = "$play_cmd $wave | $HOME/bin/eq config/$eq 80 | $HOME/bin/line $channel $sample";
 ob_start();
 passthru($cmd);
 $ret = ob_get_clean();
