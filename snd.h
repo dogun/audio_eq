@@ -2,7 +2,7 @@
  
 #include <alsa/asoundlib.h>
 
-#define RATE 48000.0f
+#define RATE 48000.0
 #define FRAME_SIZE 192
 #define SAMPLE_SIZE 32
 #define CHANNEL 2

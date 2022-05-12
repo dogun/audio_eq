@@ -11,14 +11,17 @@ int main(int argc, char* argv[]) {
 	
 	char* eq_file;
 	double vol;
-	if (argc < 3) {
-		fprintf(stderr, "usage eq eq_file vol\n");
+	int bits;
+	if (argc < 4) {
+		fprintf(stderr, "usage eq eq_file vol bits\n");
 		exit(1);
 	}
 
 	eq_file = argv[1];
 	char* s_vol = argv[2];
 	vol = atof(s_vol) / 100;
+	char* bs = argv[3];
+	bits = atoi(bs);
 
 	size = FRAME_SIZE * FRAME_BUFFER_X;
 	buffer = (char *) malloc(size);
@@ -39,11 +42,10 @@ int main(int argc, char* argv[]) {
 			fprintf(stderr, "eq short read, read %d len\n", rc);
 			break;
 		}
-		process_eq(buffer, size, vol);
+		process_eq(buffer, size, vol, bits);
 		rc = fwrite(buffer, 1, size, stdout);
 		//fprintf(stderr, "eq write to stdout size: %d\n", rc);
    }
 
    free(buffer);
 }
-

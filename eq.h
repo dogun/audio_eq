@@ -35,11 +35,11 @@ struct eq_config {
 	double cf, q, gain;
 };
 
-static void process_eq(char* buf, int len, double vol);
+static void process_eq(char* buf, int len, double vol, int bits);
 static void load_eq_config();
 
 static inline double _apply_biquads_one(double s, t_biquad* b);
-static inline void _apply_biquads(int* src, int* dst, int len, double vol);
+static inline void _apply_biquads(int* src, int* dst, int len, double vol, int bits);
 
 static void _check_eq_config();
 static int _load_config(char* config_file, eq_config* eq, long* config_time, int* eq_len);
@@ -141,11 +141,12 @@ static void _build_biquad_list() {
 /*
  * len为实际char的长度
  */
-static void process_eq(char* buf, int len, double vol) {
+static void process_eq(char* buf, int len, double vol, int bits) {
 	int size = len / 4;
 	int* ibuf = (int*)buf;
 	_check_eq_config();
-	_apply_biquads(ibuf, ibuf, size, vol);
+	
+	_apply_biquads(ibuf, ibuf, size, vol, bits);
 }
 
 /* Applies a set of biquadratic filters to a buffer of doubleing point
@@ -153,7 +154,7 @@ static void process_eq(char* buf, int len, double vol) {
  * It is safe to have the same input and output buffer.
  * len = 实际按照int的长度
  */
-static inline void _apply_biquads(int* src, int* dst, int len, double vol) {
+static inline void _apply_biquads(int* src, int* dst, int len, double vol, int bits) {
 	int i, di;
 
 	if (len % 2 != 0) {
@@ -162,8 +163,18 @@ static inline void _apply_biquads(int* src, int* dst, int len, double vol) {
 	}
 
 	for (i = 0; i < len / 2; ++i) {
-		double l_s = (double)*src++ * PREAMPF * vol;
-		double r_s = (double)*src++ * PREAMPF * vol;
+		int rl = *src++;
+		int rr = *src++;
+		if (bits == 24) {
+			rl = rl >> 8;
+			rr = rr >> 8;
+		} else if(bits == 16) {
+			rl = rl >> 16;
+			rr = rr >> 16;
+		}
+		
+		double l_s = (double)rl * PREAMPF * vol;
+		double r_s = (double)rr * PREAMPF * vol;
 		//printf("p: %f %f\n", l_s, r_s);
 		double l_f = l_s;
 		double r_f = r_s;
@@ -176,8 +187,19 @@ static inline void _apply_biquads(int* src, int* dst, int len, double vol) {
 			r_f = _apply_biquads_one(r_s, &(r_biquads[di]));
 			r_s = r_f;
 		}
-		*dst++ = (int)l_f;
-		*dst++ = (int)r_f;
+		rl = (int)l_f;
+		rr = (int)r_f;
+		
+		if (bits == 24) {
+			rl = rl << 8;
+			rr = rr << 8;
+		} else if(bits == 16) {
+			rl = rl << 16;
+			rr = rr << 16;
+		}
+		
+		*dst++ = rl;
+		*dst++ = rr;
 		//printf("r: %f %f\n", l_f, r_f);
 	}
 }
