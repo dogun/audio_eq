@@ -12,10 +12,7 @@
 #include <unistd.h>
 #include "snd.h"
 
-#define TWOPI (2.0 * M_PI)
-#define PREAMP -5.0f
-#define PREAMPF pow(10.0f, PREAMP / 20.0f)
-#define MAX_EQ_COUNT 32
+#define MAX_EQ_COUNT 16
 #define CONFIG_FILE_R_SUFFIX "_r.conf"
 #define CONFIG_FILE_L_SUFFIX "_l.conf"
 
@@ -35,11 +32,11 @@ struct eq_config {
 	double cf, q, gain;
 };
 
-static void process_eq(char* buf, int len, double vol, int bits);
+static void process_eq(char* buf, int len, int preamp, int bits);
 static void load_eq_config();
 
 static inline double _apply_biquads_one(double s, t_biquad* b);
-static inline void _apply_biquads(int* src, int* dst, int len, double vol, int bits);
+static inline void _apply_biquads(int* src, int* dst, int len, int preamp, int bits);
 
 static void _check_eq_config();
 static int _load_config(char* config_file, eq_config* eq, long* config_time, int* eq_len);
@@ -141,12 +138,12 @@ static void _build_biquad_list() {
 /*
  * len为实际char的长度
  */
-static void process_eq(char* buf, int len, double vol, int bits) {
+static void process_eq(char* buf, int len, int preamp, int bits) {
 	int size = len / 4;
 	int* ibuf = (int*)buf;
 	_check_eq_config();
 	
-	_apply_biquads(ibuf, ibuf, size, vol, bits);
+	_apply_biquads(ibuf, ibuf, size, preamp, bits);
 }
 
 /* Applies a set of biquadratic filters to a buffer of doubleing point
@@ -154,27 +151,26 @@ static void process_eq(char* buf, int len, double vol, int bits) {
  * It is safe to have the same input and output buffer.
  * len = 实际按照int的长度
  */
-static inline void _apply_biquads(int* src, int* dst, int len, double vol, int bits) {
+static inline void _apply_biquads(int* src, int* dst, int len, int preamp, int bits) {
 	int i, di;
 
 	if (len % 2 != 0) {
 		fprintf(stderr, "buffer len error: %d\n", len);
 		exit(1);
 	}
+	
+	double preampf = pow(10.0f, preamp / 20.0f);
+	
+	int bs = 32 - bits;
 
 	for (i = 0; i < len / 2; ++i) {
 		int rl = *src++;
 		int rr = *src++;
-		if (bits == 24) {
-			rl = rl >> 8;
-			rr = rr >> 8;
-		} else if(bits == 16) {
-			rl = rl >> 16;
-			rr = rr >> 16;
-		}
-		
-		double l_s = (double)rl * PREAMPF * vol;
-		double r_s = (double)rr * PREAMPF * vol;
+		rl = rl >> bs;
+		rr = rr >> bs;
+	
+		double l_s = (double)rl * preampf;
+		double r_s = (double)rr * preampf;
 		//printf("p: %f %f\n", l_s, r_s);
 		double l_f = l_s;
 		double r_f = r_s;
@@ -188,15 +184,9 @@ static inline void _apply_biquads(int* src, int* dst, int len, double vol, int b
 			r_s = r_f;
 		}
 		rl = (int)l_f;
-		rr = (int)r_f;
-		
-		if (bits == 24) {
-			rl = rl << 8;
-			rr = rr << 8;
-		} else if(bits == 16) {
-			rl = rl << 16;
-			rr = rr << 16;
-		}
+		rr = (int)r_f;	
+		rl = rl << bs;
+		rr = rr << bs;
 		
 		*dst++ = rl;
 		*dst++ = rr;
@@ -232,7 +222,7 @@ static void _mk_biquad(double dbgain, double cf, double q, t_biquad* b) {
   }
 
   double A = pow(10.0, dbgain / 40.0);
-  double omega = TWOPI * cf / RATE;
+  double omega = 2.0 * M_PI * cf / RATE;
   double sn = sin(omega);
   double cs = cos(omega);
   //double alpha = sn * sinh(M_LN2 / 2.0f * bw * omega / sn);  //use band width
