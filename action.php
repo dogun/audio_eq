@@ -9,8 +9,8 @@ $rfile = @$_REQUEST['w_name'];
 
 $action = @$_REQUEST['action'];
 
-$pwave = $HOME.$pfile;
-$rwave = $HOME.$rfile;
+$pwave = $HOME.'/wav/'.$pfile;
+$rwave = $HOME.'/wav/'.$rfile;
 
 $play_cmd = 'cat';
 if (strstr($pwave, 'wav')) $play_cmd = $HOME.'/bin/wave';

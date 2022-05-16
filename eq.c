@@ -29,6 +29,8 @@ int main(int argc, char* argv[]) {
 	fprintf(stderr, "eq buffer size: %d frames: %d\n", size, FRAME_SIZE);
 
 	load_eq_config(eq_file);
+	
+	double preampf = pow(10.0f, preamp / 20.0f);
 
 	while(1) {
 		//memset(buffer, 0, size);
@@ -42,7 +44,7 @@ int main(int argc, char* argv[]) {
 			fprintf(stderr, "eq short read, read %d len\n", rc);
 			break;
 		}
-		process_eq(buffer, size, preamp, bits);
+		process_eq(buffer, size, preampf, bits);
 		rc = fwrite(buffer, 1, size, stdout);
 		//fprintf(stderr, "eq write to stdout size: %d\n", rc);
    }

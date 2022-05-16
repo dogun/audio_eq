@@ -10,14 +10,18 @@ $channel = @$_REQUEST['channel'];
 $sample = @$_REQUEST['sample'];
 
 $wavs = array();
-$dir = dir($path);
+$wavdir = dir($path.'/wav/');
 $eqs = array();
-while (($file = $dir->read()) !== false){
+$eqsdir = dir($path.'/config/');
+while (($file = $wavdir->read()) !== false){
 	if (strstr($file, '.wav') || strstr($file, '.raw')) $wavs[] = $file;
+}
+while (($file = $eqsdir->read()) !== false){
 	if (strstr($file, '_l.conf')) $eqs[] = str_replace('_l.conf', '', $file);
 }
 
-$dir->close();
+$wavdir->close();
+$eqsdir->close();
 
 if ($eq) {
 	$eq_l = @$_REQUEST['eq_l'];

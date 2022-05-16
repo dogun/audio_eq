@@ -32,11 +32,11 @@ struct eq_config {
 	double cf, q, gain;
 };
 
-static void process_eq(char* buf, int len, int preamp, int bits);
+static void process_eq(char* buf, int len, double preamp, int bits);
 static void load_eq_config();
 
 static inline double _apply_biquads_one(double s, t_biquad* b);
-static inline void _apply_biquads(int* src, int* dst, int len, int preamp, int bits);
+static inline void _apply_biquads(int* src, int* dst, int len, double preamp, int bits);
 
 static void _check_eq_config();
 static int _load_config(char* config_file, eq_config* eq, long* config_time, int* eq_len);
@@ -138,7 +138,7 @@ static void _build_biquad_list() {
 /*
  * len为实际char的长度
  */
-static void process_eq(char* buf, int len, int preamp, int bits) {
+static void process_eq(char* buf, int len, double preamp, int bits) {
 	int size = len / 4;
 	int* ibuf = (int*)buf;
 	_check_eq_config();
@@ -151,15 +151,13 @@ static void process_eq(char* buf, int len, int preamp, int bits) {
  * It is safe to have the same input and output buffer.
  * len = 实际按照int的长度
  */
-static inline void _apply_biquads(int* src, int* dst, int len, int preamp, int bits) {
+static inline void _apply_biquads(int* src, int* dst, int len, double preamp, int bits) {
 	int i, di;
 
 	if (len % 2 != 0) {
 		fprintf(stderr, "buffer len error: %d\n", len);
 		exit(1);
 	}
-	
-	double preampf = pow(10.0f, preamp / 20.0f);
 	
 	int bs = 32 - bits;
 
@@ -169,8 +167,8 @@ static inline void _apply_biquads(int* src, int* dst, int len, int preamp, int b
 		rl = rl >> bs;
 		rr = rr >> bs;
 	
-		double l_s = (double)rl * preampf;
-		double r_s = (double)rr * preampf;
+		double l_s = (double)rl * preamp;
+		double r_s = (double)rr * preamp;
 		//printf("p: %f %f\n", l_s, r_s);
 		double l_f = l_s;
 		double r_f = r_s;
