@@ -13,6 +13,7 @@
 #include "common_config.h"
 
 #define MAX_EQ_COUNT 100
+#define PREAMPF powf(10.0f, -3 / 20.0f)
 
 typedef struct t_biquad t_biquad;
 struct t_biquad {
@@ -22,9 +23,9 @@ struct t_biquad {
 };
 
 static inline float _apply_biquads_one(float s, t_biquad* b);
-static inline void _biquads_x(int* src, int* dst, int len, float preamp, t_biquad* biquad, int start, int eqline);
-static inline void _apply_biquads_r(int* src, int* dst, int len, float preamp);
-static inline void _apply_biquads_l(int* src, int* dst, int len, float preamp);
+static inline void _biquads_x(int* src, int* dst, int len, t_biquad* biquad, int start, int eqline);
+static inline void _apply_biquads_r(int* src, int* dst, int len);
+static inline void _apply_biquads_l(int* src, int* dst, int len);
 
 static void _mk_biquad(float dbgain, float cf, float q, t_biquad *b);
 
@@ -33,18 +34,18 @@ int eq_len_l;
 static t_biquad r_biquads[MAX_EQ_COUNT];
 static t_biquad l_biquads[MAX_EQ_COUNT];
 
-static inline void _biquads_x(int* src, int* dst, int len, float preamp, t_biquad* biquad, int start, int eqline) {
+static inline void _biquads_x(int* src, int* dst, int len, t_biquad* biquad, int start, int eqline) {
 	int i, di;
 
-	for (i = 0; i < len; i += 2) {
+	for (i = start; i < len; i += 2) {
 		int rl = src[i];
 
 		rl = rl >> 8;
 
-		float l_s = (float)rl * preamp;
+		float l_s = (float)rl * PREAMPF;
 		float l_f = l_s;
 
-		for (di = start; di < eqline; ++di) {
+		for (di = 0; di < eqline; ++di) {
 			l_f = _apply_biquads_one(l_s, &(biquad[di]));
 			l_s = l_f;
 		}
@@ -55,12 +56,12 @@ static inline void _biquads_x(int* src, int* dst, int len, float preamp, t_biqua
 	}
 }
 
-static inline void _apply_biquads_l(int* src, int* dst, int len, float preamp) {
-	_biquads_x(src, dst, len, preamp, l_biquads, 0, eq_len_l);
+static inline void _apply_biquads_l(int* src, int* dst, int len) {
+	_biquads_x(src, dst, len, l_biquads, 0, eq_len_l);
 }
 
-static inline void _apply_biquads_r(int* src, int* dst, int len, float preamp) {
-	_biquads_x(src, dst, len, preamp, r_biquads, 1, eq_len_r);
+static inline void _apply_biquads_r(int* src, int* dst, int len) {
+	_biquads_x(src, dst, len, r_biquads, 1, eq_len_r);
 }
 
 static inline float _apply_biquads_one(float s, t_biquad* b) {
