@@ -1,3 +1,6 @@
+#ifndef MAIN_EQ__H_
+#define MAIN_EQ__H_
+
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -90,6 +93,7 @@ static void _mk_biquad(float dbgain, float cf, float q, t_biquad* b) {
 	  exit(1);
   }
 
+  ESP_LOGW(EQ_TAG, "make biquad: %f %f %f", cf, dbgain, q);
   float A = powf(10.0, dbgain / 40.0);
   float omega = 2.0 * M_PI * cf / RATE;
   float sn = sinf(omega);
@@ -122,3 +126,5 @@ static void _mk_biquad(float dbgain, float cf, float q, t_biquad* b) {
   b->q = q;
   b->gain = dbgain;
 }
+
+#endif

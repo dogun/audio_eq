@@ -10,7 +10,7 @@
 
 #define RATE 48000.0f
 
-#define LOG_LOCAL_LEVEL ESP_LOG_WARN
+#define LOG_LOCAL_LEVEL ESP_LOG_INFO
 #include "esp_log.h"
 
 #define READ_TAG "read"

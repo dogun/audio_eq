@@ -10,9 +10,12 @@
 #include <stddef.h>
 #include <inttypes.h>
 #include <freertos/semphr.h>
+#include "driver/touch_pad.h"
 #include "common_config.h"
+#include "eq_config.h"
 #include "i2s_config.h"
 #include "eq.h"
+#include "http_op.h"
 
 typedef unsigned int size_t;
 
@@ -61,48 +64,60 @@ void eq_r_task() {
 	}
 }
 
+#define SSID "ESP32-AP"
+#define PASS "123456789"
+#define MAX_CON 5
+
+static void wifi_event_handler(void *arg, esp_event_base_t event_base,
+		int32_t event_id, void *event_data) {
+	if (event_id == WIFI_EVENT_AP_STACONNECTED) {
+		wifi_event_ap_staconnected_t *event =
+				(wifi_event_ap_staconnected_t*) event_data;
+		ESP_LOGI(MAIN_TAG, "station "MACSTR" join, AID=%d", MAC2STR(event->mac),
+				event->aid);
+	} else if (event_id == WIFI_EVENT_AP_STADISCONNECTED) {
+		wifi_event_ap_stadisconnected_t *event =
+				(wifi_event_ap_stadisconnected_t*) event_data;
+		ESP_LOGI(MAIN_TAG, "station "MACSTR" leave, AID=%d",
+				MAC2STR(event->mac), event->aid);
+	}
+}
+
+void wifi_init_softap(void) {
+	ESP_ERROR_CHECK(esp_netif_init());
+	ESP_ERROR_CHECK(esp_event_loop_create_default());
+	esp_netif_create_default_wifi_ap();
+
+	wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
+	ESP_ERROR_CHECK(esp_wifi_init(&cfg));
+
+	ESP_ERROR_CHECK(
+			esp_event_handler_instance_register(WIFI_EVENT, ESP_EVENT_ANY_ID, &wifi_event_handler, NULL, NULL));
+
+	wifi_config_t wifi_config = { .ap = { .ssid = SSID, .ssid_len = strlen(
+	SSID), .password = PASS, .max_connection =
+	MAX_CON, .authmode = WIFI_AUTH_WPA_WPA2_PSK } };
+	if (strlen(PASS) == 0) {
+		wifi_config.ap.authmode = WIFI_AUTH_OPEN;
+	}
+
+	ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_AP));
+	ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_AP, &wifi_config));
+}
+
 void app_main(void) {
+	ESP_LOGI(MAIN_TAG, "config fs");
+	init_fs();
+	ESP_LOGI(MAIN_TAG, "config fs ok");
+
+	ESP_LOGI(MAIN_TAG, "read eq config");
+	load_eq();
+	ESP_LOGI(MAIN_TAG, "read eq config ok");
 
 	ESP_LOGI(MAIN_TAG, "init i2s start");
 	i2s_driver_install(i2s_num, &i2s_config, 0, NULL);
 	i2s_set_pin(i2s_num, &pin_config);
 	ESP_LOGI(MAIN_TAG, "init i2s end");
-
-	ESP_LOGI(MAIN_TAG, "init eq config");
-	_mk_biquad(-7.000000, 42.050000, 10.337000, &(l_biquads[eq_len_l++]));
-	_mk_biquad(-5.600000, 51.000000, 5.877000, &(l_biquads[eq_len_l++]));
-	_mk_biquad(1.800000, 59.500000, 7.496000, &(l_biquads[eq_len_l++]));
-	_mk_biquad(3.600000, 74.600000, 7.498000, &(l_biquads[eq_len_l++]));
-	_mk_biquad(-6.400000, 95.100000, 5.288000, &(l_biquads[eq_len_l++]));
-	_mk_biquad(-5.900000, 115.000000, 4.664000, &(l_biquads[eq_len_l++]));
-	_mk_biquad(-3.100000, 191.500000, 6.663000, &(l_biquads[eq_len_l++]));
-	_mk_biquad(-4.500000, 223.000000, 4.490000, &(l_biquads[eq_len_l++]));
-	_mk_biquad(-2.600000, 314.000000, 5.046000, &(l_biquads[eq_len_l++]));
-	_mk_biquad(-6.000000, 608.000000, 5.530000, &(l_biquads[eq_len_l++]));
-	_mk_biquad(-5.200000, 1252.000000, 6.222000, &(l_biquads[eq_len_l++]));
-	_mk_biquad(-6.600000, 1374.000000, 6.401000, &(l_biquads[eq_len_l++]));
-	_mk_biquad(-4.900000, 1542.000000, 6.309000, &(l_biquads[eq_len_l++]));
-	_mk_biquad(-3.400000, 9155.000000, 2.943000, &(l_biquads[eq_len_l++]));
-	_mk_biquad(-1.900000, 11612.000000, 2.135000, &(l_biquads[eq_len_l++]));
-
-	_mk_biquad(-6.900000, 42.400000, 10.065000, &(r_biquads[eq_len_r++]));
-	_mk_biquad(-6.000000, 51.100000, 6.577000, &(r_biquads[eq_len_r++]));
-	_mk_biquad(-2.200000, 67.600000, 13.101000, &(r_biquads[eq_len_r++]));
-	_mk_biquad(-8.100000, 82.000000, 4.921000, &(r_biquads[eq_len_r++]));
-	_mk_biquad(6.900000, 85.300000, 3.022000, &(r_biquads[eq_len_r++]));
-	_mk_biquad(-5.300000, 115.000000, 5.625000, &(r_biquads[eq_len_r++]));
-	_mk_biquad(3.000000, 154.000000, 7.441000, &(r_biquads[eq_len_r++]));
-	_mk_biquad(-5.500000, 201.000000, 6.717000, &(r_biquads[eq_len_r++]));
-	_mk_biquad(-4.200000, 552.000000, 3.447000, &(r_biquads[eq_len_r++]));
-	_mk_biquad(-3.800000, 830.000000, 5.167000, &(r_biquads[eq_len_r++]));
-	_mk_biquad(-11.000000, 1339.000000, 3.544000, &(r_biquads[eq_len_r++]));
-	_mk_biquad(-1.500000, 1934.000000, 2.072000, &(r_biquads[eq_len_r++]));
-	_mk_biquad(3.000000, 2328.000000, 5.714000, &(r_biquads[eq_len_r++]));
-	_mk_biquad(3.800000, 3317.000000, 2.126000, &(r_biquads[eq_len_r++]));
-	_mk_biquad(-3.400000, 4431.000000, 3.536000, &(r_biquads[eq_len_r++]));
-	_mk_biquad(3.000000, 6097.000000, 2.744000, &(r_biquads[eq_len_r++]));
-	_mk_biquad(-3.900000, 11767.000000, 1.000000, &(r_biquads[eq_len_r++]));
-	ESP_LOGI(MAIN_TAG, "eq config ok");
 
 	ESP_LOGI(MAIN_TAG, "start eq task(read write eqx2)");
 	read_sem = xSemaphoreCreateBinary();
@@ -110,15 +125,47 @@ void app_main(void) {
 	write_r_sem = xSemaphoreCreateBinary();
 	eq_l_sem = xSemaphoreCreateBinary();
 	eq_r_sem = xSemaphoreCreateBinary();
-	xTaskCreatePinnedToCore(eq_l_task, "eq_task_l", 10000, NULL, 3, NULL, 1);
-	xTaskCreatePinnedToCore(eq_r_task, "eq_task_r", 10000, NULL, 3, NULL, 0);
-	xTaskCreatePinnedToCore(write_task, "write_task", 10000, NULL, 3, NULL, 0);
-	xTaskCreatePinnedToCore(read_task, "read_task", 10000, NULL, 3, NULL, 1);
+	xTaskCreatePinnedToCore(&eq_l_task, "eq_task_l", 10000, NULL, 3, NULL, 1);
+	xTaskCreatePinnedToCore(&eq_r_task, "eq_task_r", 10000, NULL, 3, NULL, 0);
+	xTaskCreatePinnedToCore(&write_task, "write_task", 10000, NULL, 3, NULL, 0);
+	xTaskCreatePinnedToCore(&read_task, "read_task", 10000, NULL, 3, NULL, 1);
 	ESP_LOGI(MAIN_TAG, "eq task ok");
 
 	ESP_LOGI(MAIN_TAG, "give read_sem, start task chain");
 	xSemaphoreGive(read_sem);
 
-	vTaskSuspend(NULL);
+	wifi_init_softap();
+
+	ESP_ERROR_CHECK(touch_pad_init());
+	touch_pad_set_voltage(TOUCH_HVOLT_2V7, TOUCH_LVOLT_0V5, TOUCH_HVOLT_ATTEN_1V);
+	touch_pad_config(TOUCH_PAD_NUM8, 0);
+
+	uint16_t touch_value;
+	int http_started = 0;
+	httpd_handle_t server;
+	while (1) {
+		touch_pad_read(TOUCH_PAD_NUM8, &touch_value);
+		if(touch_value < 1000) {
+			ESP_LOGI(MAIN_TAG, "T:[%d] ", touch_value);
+			vTaskDelay(3000 / portTICK_PERIOD_MS);
+			touch_pad_read(TOUCH_PAD_NUM8, &touch_value);
+			if(touch_value < 1000) {
+				if (http_started == 0) {
+					ESP_LOGI(MAIN_TAG, "start http server");
+					ESP_ERROR_CHECK(esp_wifi_start());
+					server = start_webserver();
+					http_started = 1;
+				}else {
+					stop_webserver(server);
+					esp_wifi_stop();
+					http_started = 0;
+				}
+				vTaskDelay(3000 / portTICK_PERIOD_MS);
+			}
+		}
+		vTaskDelay(500 / portTICK_PERIOD_MS);
+	}
+
+	//vTaskSuspend(NULL);
 }
 
