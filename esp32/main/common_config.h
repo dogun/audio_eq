@@ -17,5 +17,8 @@
 #define WRITE_TAG "write"
 #define MAIN_TAG "main"
 #define EQ_TAG "eq"
+#define HTTP_TAG "http"
+#define CONFIG_TAG "config"
+
 
 #endif /* MAIN_COMMON_CONFIG_H_ */
