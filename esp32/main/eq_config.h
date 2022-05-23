@@ -12,9 +12,6 @@
 #include "config_store.h"
 #include "eq.h"
 
-#define L_CODE 0
-#define R_CODE 1
-
 #define CONFIG_SIZE 1024
 
 #define CONFIG_KEY_L "l_config"

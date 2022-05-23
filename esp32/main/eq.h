@@ -18,6 +18,9 @@
 #define MAX_EQ_COUNT 100
 #define PREAMPF powf(10.0f, -1 / 20.0f)
 
+#define L_CODE 0
+#define R_CODE 1
+
 typedef struct t_biquad t_biquad;
 struct t_biquad {
 	float a0, a1, a2, a3, a4;
@@ -60,11 +63,11 @@ static inline void _biquads_x(int* src, int* dst, int len, t_biquad* biquad, int
 }
 
 static inline void _apply_biquads_l(int* src, int* dst, int len) {
-	_biquads_x(src, dst, len, l_biquads, 0, eq_len_l);
+	_biquads_x(src, dst, len, l_biquads, L_CODE, eq_len_l);
 }
 
 static inline void _apply_biquads_r(int* src, int* dst, int len) {
-	_biquads_x(src, dst, len, r_biquads, 1, eq_len_r);
+	_biquads_x(src, dst, len, r_biquads, R_CODE, eq_len_r);
 }
 
 static inline float _apply_biquads_one(float s, t_biquad* b) {
