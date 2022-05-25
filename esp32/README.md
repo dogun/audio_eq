@@ -1,11 +1,34 @@
-ESP-IDF template app
-====================
+# ESP32 Audio EQ
+## 功能说明
+该代码运行在ESP32，需要配合支持I2S的ADC和DAC设备进行音频处理。
+### 特性
++ 12.288M主时钟，采用高精度pll输出
++ 48k采样率
++ 24bit
++ I2S标准时序
++ 提供通过web的参数修改
++ 最高支持每声道50个EQ设置（ESP32设置240M主频）
+### 使用方法
+#### GPIO接口
+1. MCK：GPIO0，部分ESP32模块未引出该脚，可以手动焊接引出
+2. BCK：GPIO27
+3. LRCK：GPIO26
+4. DOUT：GPIO25
+5. DIN：GPIO23
+6. 触控：GPIO33
+#### 配置
+1. 模块上电后，轻触触控按钮（GPIO33）超过3秒，启动WIFI和HTTP服务
+2. 使用手机或PC连接WIFI：ESP32-AP，密码：123456789
+3. 浏览器打开(http://192.168.4.1/c)，分别输入左右声道配置的文件名，点击按钮保存
+4. 浏览器打开(http://192.168.4.1/eq?f=xxxx)，xxxx为要修改的配置文件名，输入EQ配置，点击按钮保存。
+配置文件格式：每行一条EQ，分别为：cf gain q
+'''
+49.00 -5.5 6.589
+61.00 1.7 7.352
+93.50 9.0 7.496
+94.90 -7.7 2.816
+104.00 7.1 6.896
+136.00 -2.3 8.725
+'''
 
-This is a template application to be used with [Espressif IoT Development Framework](https://github.com/espressif/esp-idf).
-
-Please check [ESP-IDF docs](https://docs.espressif.com/projects/esp-idf/en/latest/get-started/index.html) for getting started instructions.
-
-*Code in this repository is in the Public Domain (or CC0 licensed, at your option.)
-Unless required by applicable law or agreed to in writing, this
-software is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
-CONDITIONS OF ANY KIND, either express or implied.*
+## 代码说明
