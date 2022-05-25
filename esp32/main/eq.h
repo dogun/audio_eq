@@ -15,7 +15,7 @@
 #include <unistd.h>
 #include "common_config.h"
 
-#define MAX_EQ_COUNT 100
+#define MAX_EQ_COUNT 50
 #define PREAMPF powf(10.0f, -1 / 20.0f)
 
 #define L_CODE 0
