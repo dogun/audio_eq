@@ -16,11 +16,13 @@
 #include "i2s_config.h"
 #include "eq.h"
 #include "http_op.h"
+#include "stereo2mono.h"
 
 typedef unsigned int size_t;
 
 #define BUF_SIZE 1024
 static int32_t data[BUF_SIZE];
+static int stereo2mono_config = 0;
 
 static SemaphoreHandle_t read_sem;
 static SemaphoreHandle_t write_l_sem;
@@ -28,11 +30,20 @@ static SemaphoreHandle_t write_r_sem;
 static SemaphoreHandle_t eq_l_sem;
 static SemaphoreHandle_t eq_r_sem;
 
+void pre_task(int* src, int* dst, int len) {
+	if (stereo2mono_config == 1) stereo2mono(src, dst, len);
+}
+
+void post_task(int* src, int* dst, int len) {
+
+}
+
 void read_task() {
 	size_t bytes_read = 0;
 	while (true) {
 		xSemaphoreTake(read_sem, portMAX_DELAY);
 		i2s_read(i2s_num, (char*) data, BUF_SIZE * 4, &bytes_read, 100);
+		pre_task(data, data, BUF_SIZE);
 		xSemaphoreGive(eq_r_sem);
 		xSemaphoreGive(eq_l_sem);
 	}
@@ -43,6 +54,7 @@ void write_task() {
 	while (true) {
 		xSemaphoreTake(write_l_sem, portMAX_DELAY);
 		xSemaphoreTake(write_r_sem, portMAX_DELAY);
+		post_task(data, data, BUF_SIZE);
 		i2s_write(i2s_num, (char*) data, BUF_SIZE * 4, &bytes_write, 100);
 		xSemaphoreGive(read_sem);
 	}
@@ -113,6 +125,12 @@ void app_main(void) {
 	ESP_LOGI(MAIN_TAG, "read eq config");
 	load_eq();
 	ESP_LOGI(MAIN_TAG, "read eq config ok");
+
+	ESP_LOGI(MAIN_TAG, "read stereo2mono config");
+	char s2m[16] = {0};
+	read_config("s2m", s2m, sizeof(s2m));
+	if (strlen(s2m) > 0) stereo2mono_config = atoi(s2m);
+	ESP_LOGI(MAIN_TAG, "read stereo2mono config: %s", s2m);
 
 	ESP_LOGI(MAIN_TAG, "init i2s start");
 	i2s_driver_install(i2s_num, &i2s_config, 0, NULL);
