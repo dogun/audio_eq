@@ -62,3 +62,5 @@ record
 wave
 yummyBasic
 bin
+measure
+config/focus*
