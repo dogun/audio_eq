@@ -17,12 +17,14 @@
 #include "eq.h"
 #include "http_op.h"
 #include "stereo2mono.h"
+#include "maxvol.h"
 
 typedef unsigned int size_t;
 
 #define BUF_SIZE 1024
 static int32_t data[BUF_SIZE];
 static int stereo2mono_config = 0;
+static int maxvol_config = 0;
 
 static SemaphoreHandle_t read_sem;
 static SemaphoreHandle_t write_l_sem;
@@ -30,12 +32,12 @@ static SemaphoreHandle_t write_r_sem;
 static SemaphoreHandle_t eq_l_sem;
 static SemaphoreHandle_t eq_r_sem;
 
-void pre_task(int* src, int* dst, int len) {
+void pre_task(int32_t* src, int32_t* dst, int len) {
 	if (stereo2mono_config == 1) stereo2mono(src, dst, len);
 }
 
-void post_task(int* src, int* dst, int len) {
-
+void post_task(int32_t* src, int32_t* dst, int len) {
+	if (maxvol_config == 1) maxvol(src, dst, len, R_CODE);
 }
 
 void read_task() {
@@ -80,15 +82,15 @@ void eq_r_task() {
 #define PASS "123456789"
 #define MAX_CON 5
 
-static void wifi_event_handler(void *arg, esp_event_base_t event_base,
-		int32_t event_id, void *event_data) {
+static void wifi_event_handler(void* arg, esp_event_base_t event_base,
+		int32_t event_id, void* event_data) {
 	if (event_id == WIFI_EVENT_AP_STACONNECTED) {
-		wifi_event_ap_staconnected_t *event =
+		wifi_event_ap_staconnected_t* event =
 				(wifi_event_ap_staconnected_t*) event_data;
 		ESP_LOGI(MAIN_TAG, "station "MACSTR" join, AID=%d", MAC2STR(event->mac),
 				event->aid);
 	} else if (event_id == WIFI_EVENT_AP_STADISCONNECTED) {
-		wifi_event_ap_stadisconnected_t *event =
+		wifi_event_ap_stadisconnected_t* event =
 				(wifi_event_ap_stadisconnected_t*) event_data;
 		ESP_LOGI(MAIN_TAG, "station "MACSTR" leave, AID=%d",
 				MAC2STR(event->mac), event->aid);
@@ -131,6 +133,12 @@ void app_main(void) {
 	read_config("s2m", s2m, sizeof(s2m));
 	if (strlen(s2m) > 0) stereo2mono_config = atoi(s2m);
 	ESP_LOGI(MAIN_TAG, "read stereo2mono config: %s", s2m);
+
+	ESP_LOGI(MAIN_TAG, "read stereo2mono config");
+	char maxvol[16] = {0};
+	read_config("maxvol", maxvol, sizeof(maxvol));
+	if (strlen(maxvol) > 0) maxvol_config = atoi(maxvol);
+	ESP_LOGI(MAIN_TAG, "read maxvol config: %s", maxvol);
 
 	ESP_LOGI(MAIN_TAG, "init i2s start");
 	i2s_driver_install(i2s_num, &i2s_config, 0, NULL);
