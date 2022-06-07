@@ -10,6 +10,9 @@
 
 #define RATE 48000.0f
 
+#define L_CODE 0
+#define R_CODE 1
+
 #define LOG_LOCAL_LEVEL ESP_LOG_INFO
 #include "esp_log.h"
 

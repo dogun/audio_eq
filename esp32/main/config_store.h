@@ -40,7 +40,7 @@ nvs_handle_t _open_nvs() {
 
 typedef unsigned int size_t;
 
-void read_config(char* f, char *buf, int size) {
+void read_config(char* f, char* buf, int size) {
 	nvs_handle_t my_handle = _open_nvs();
 
 	size_t len = size;
@@ -54,7 +54,7 @@ void read_config(char* f, char *buf, int size) {
 	nvs_close(my_handle);
 }
 
-void save_config(char* file, char *config) {
+void save_config(char* file, char* config) {
 	nvs_handle_t my_handle = _open_nvs();
 	ESP_LOGI(CONFIG_TAG, "write data %s %s", file, config);
 	esp_err_t err = nvs_set_str(my_handle, file, config);

@@ -18,9 +18,6 @@
 #define MAX_EQ_COUNT 50
 #define PREAMPF powf(10.0f, -1 / 20.0f)
 
-#define L_CODE 0
-#define R_CODE 1
-
 typedef struct t_biquad t_biquad;
 struct t_biquad {
 	float a0, a1, a2, a3, a4;
@@ -29,9 +26,9 @@ struct t_biquad {
 };
 
 static inline float _apply_biquads_one(float s, t_biquad* b);
-static inline void _biquads_x(int* src, int* dst, int len, t_biquad* biquad, int start, int eqline);
-static inline void _apply_biquads_r(int* src, int* dst, int len);
-static inline void _apply_biquads_l(int* src, int* dst, int len);
+static inline void _biquads_x(int32_t* src, int32_t* dst, int len, t_biquad* biquad, int start, int eqline);
+static inline void _apply_biquads_r(int32_t* src, int32_t* dst, int len);
+static inline void _apply_biquads_l(int32_t* src, int32_t* dst, int len);
 
 static void _mk_biquad(float dbgain, float cf, float q, t_biquad *b);
 
@@ -40,11 +37,11 @@ int eq_len_l;
 static t_biquad r_biquads[MAX_EQ_COUNT];
 static t_biquad l_biquads[MAX_EQ_COUNT];
 
-static inline void _biquads_x(int* src, int* dst, int len, t_biquad* biquad, int start, int eqline) {
+static inline void _biquads_x(int32_t* src, int32_t* dst, int len, t_biquad* biquad, int start, int eqline) {
 	int i, di;
 
 	for (i = start; i < len; i += 2) {
-		int rl = src[i];
+		int32_t rl = src[i];
 
 		rl = rl >> 8;
 
@@ -55,18 +52,18 @@ static inline void _biquads_x(int* src, int* dst, int len, t_biquad* biquad, int
 			l_f = _apply_biquads_one(l_s, &(biquad[di]));
 			l_s = l_f;
 		}
-		rl = (int)l_f;
+		rl = (int32_t)l_f;
 		rl = rl << 8;
 
 		dst[i] = rl;
 	}
 }
 
-static inline void _apply_biquads_l(int* src, int* dst, int len) {
+static inline void _apply_biquads_l(int32_t* src, int32_t* dst, int len) {
 	_biquads_x(src, dst, len, l_biquads, L_CODE, eq_len_l);
 }
 
-static inline void _apply_biquads_r(int* src, int* dst, int len) {
+static inline void _apply_biquads_r(int32_t* src, int32_t* dst, int len) {
 	_biquads_x(src, dst, len, r_biquads, R_CODE, eq_len_r);
 }
 
@@ -98,7 +95,7 @@ static void _mk_biquad(float dbgain, float cf, float q, t_biquad* b) {
 
   ESP_LOGW(EQ_TAG, "make biquad: %f %f %f", cf, dbgain, q);
   float A = powf(10.0, dbgain / 40.0);
-  float omega = 2.0 * M_PI * cf / RATE;
+  float omega = 2.0 * 3.14159265358979323846 * cf / RATE;
   float sn = sinf(omega);
   float cs = cosf(omega);
   //float alpha = sn * sinh(M_LN2 / 2.0f * bw * omega / sn);  //use band width
