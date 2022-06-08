@@ -16,12 +16,13 @@
 #include "i2s_config.h"
 #include "eq.h"
 #include "http_op.h"
+#include "maxvol_pwmout.h"
 #include "stereo2mono.h"
-#include "maxvol.h"
+#include "pwmout.h"
 
 typedef unsigned int size_t;
 
-#define BUF_SIZE 1024
+#define BUF_SIZE 256
 static int32_t data[BUF_SIZE];
 static int stereo2mono_config = 0;
 static int maxvol_config = 0;
@@ -37,7 +38,7 @@ void pre_task(int32_t* src, int32_t* dst, int len) {
 }
 
 void post_task(int32_t* src, int32_t* dst, int len) {
-	if (maxvol_config == 1) maxvol(src, dst, len, R_CODE);
+	if (maxvol_config == 1) maxvol(src, dst, len, -1);
 }
 
 void read_task() {
@@ -134,10 +135,13 @@ void app_main(void) {
 	if (strlen(s2m) > 0) stereo2mono_config = atoi(s2m);
 	ESP_LOGI(MAIN_TAG, "read stereo2mono config: %s", s2m);
 
-	ESP_LOGI(MAIN_TAG, "read stereo2mono config");
+	ESP_LOGI(MAIN_TAG, "read maxvol config");
 	char maxvol[16] = {0};
 	read_config("maxvol", maxvol, sizeof(maxvol));
 	if (strlen(maxvol) > 0) maxvol_config = atoi(maxvol);
+	if (maxvol_config == 1) {
+		config_pwm();
+	}
 	ESP_LOGI(MAIN_TAG, "read maxvol config: %s", maxvol);
 
 	ESP_LOGI(MAIN_TAG, "init i2s start");
