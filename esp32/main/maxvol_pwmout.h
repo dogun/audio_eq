@@ -13,13 +13,13 @@
 
 #define BIT24_MAX 0x7FFFFF
 #define BIT24_MIN 0x800000
-#define STEP RATE
+#define STEP RATE * 10
 
-static int32_t MAX_NOW = 0;
-static int32_t MIN_NOW = 0;
+static float MAX_NOW = 1;
+static float MIN_NOW = -1;
 static int _step_num = 0;
 
-int _logi = 0;
+//int _logi = 0;
 
 static inline int32_t _proc_maxvol(int32_t data) {
 	if (_step_num < STEP) {
@@ -30,17 +30,18 @@ static inline int32_t _proc_maxvol(int32_t data) {
 		_step_num = 0;
 		MAX_NOW = MAX_NOW / 3;
 		MIN_NOW = MIN_NOW / 3;
+		if (MAX_NOW == 0) MAX_NOW = 1;
+		if (MIN_NOW == 0) MIN_NOW = -1;
 	}
 
 	int32_t ret = 0;
-	if (data > 0) ret = (BIT24_MAX / MAX_NOW) * data;
-	else ret = (BIT24_MIN / MIN_NOW) * data;
+	if (data > 0) ret = ((float)BIT24_MAX / MAX_NOW) * data;
+	else ret = ((float)BIT24_MIN / MIN_NOW) * data;
 
 	//if ((_logi++ % 1000) == 0) ESP_LOGI(LOG_TAG_PWMOUT, "ret: %d, data: %d, max_now: %d, min_now: %d, step: %d, 24max: %d", ret, data, MAX_NOW, MIN_NOW, _step_num, BIT24_MAX);
 
 	return ret;
 }
-
 
 
 /**
@@ -77,7 +78,7 @@ static inline void maxvol(int32_t* src, int32_t* dst, int len, int ch) {
 	if (duty > 1) duty = 0.9;
 	pwm_set_duty(duty);
 
-	if ((_logi++ % 1000) == 0) ESP_LOGI(LOG_TAG_PWMOUT, "duty: %f, total: %d, max: %d, val: %d, 24max: %d", duty, total, max, val, BIT24_MAX);
+	//if ((_logi++ % 1000) == 0) ESP_LOGI(LOG_TAG_PWMOUT, "duty: %f, total: %d, max: %d, val: %d, 24max: %d", duty, total, max, val, BIT24_MAX);
 }
 
 #endif /* MAIN_MAXVOL_PWMOUT_H_ */
