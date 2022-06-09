@@ -47,7 +47,7 @@ void url_decode(char* res) {
 	ESP_LOGI(HTTP_TAG, "urldecode res ok: %s", res);
 }
 
-esp_err_t get_handler_eq(httpd_req_t* req) {
+esp_err_t get_handler_edit(httpd_req_t* req) {
 	char* uri = strstr(req->uri, "=");
 
 	if (NULL == uri) {
@@ -66,7 +66,7 @@ esp_err_t get_handler_eq(httpd_req_t* req) {
 	return ESP_OK;
 }
 
-esp_err_t post_handler_eq(httpd_req_t* req) {
+esp_err_t post_handler_edit(httpd_req_t* req) {
 	char content[1024] = {0};
 	int recv_size = MIN(req->content_len, sizeof(content));
 	int ret = httpd_req_recv(req, content, recv_size);
@@ -100,7 +100,7 @@ esp_err_t post_handler_eq(httpd_req_t* req) {
 	return ESP_OK;
 }
 
-esp_err_t get_handler_c(httpd_req_t* req) {
+esp_err_t get_handler_eqc(httpd_req_t* req) {
 	char config_key_l[64] = {0};
 	char config_key_r[64] = {0};
 	read_config(CONFIG_KEY_L, config_key_l, sizeof(config_key_l));
@@ -112,7 +112,7 @@ esp_err_t get_handler_c(httpd_req_t* req) {
 	return ESP_OK;
 }
 
-esp_err_t post_handler_c(httpd_req_t* req) {
+esp_err_t post_handler_eqc(httpd_req_t* req) {
 	char content[512] = {0};
 	int recv_size = MIN(req->content_len, sizeof(content));
 	int ret = httpd_req_recv(req, content, recv_size);
@@ -152,30 +152,30 @@ esp_err_t post_handler_c(httpd_req_t* req) {
 }
 
 httpd_uri_t uri_get_c = {
-		.uri = "/c",
+		.uri = "/eqc",
 		.method = HTTP_GET,
-		.handler = get_handler_c,
+		.handler = get_handler_eqc,
 		.user_ctx = NULL
 };
 
 httpd_uri_t uri_post_c = {
-		.uri = "/c",
+		.uri = "/eqc",
 		.method = HTTP_POST,
-		.handler = post_handler_c,
+		.handler = post_handler_eqc,
 		.user_ctx = NULL
 };
 
 httpd_uri_t uri_get_eq = {
-		.uri = "/eq",
+		.uri = "/edit",
 		.method = HTTP_GET,
-		.handler = get_handler_eq,
+		.handler = get_handler_edit,
 		.user_ctx = NULL
 };
 
 httpd_uri_t uri_post_eq = {
-		.uri = "/eq",
+		.uri = "/edit",
 		.method = HTTP_POST,
-		.handler = post_handler_eq,
+		.handler = post_handler_edit,
 		.user_ctx = NULL
 };
 
