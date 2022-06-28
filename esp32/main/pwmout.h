@@ -18,11 +18,11 @@
 
 #define LOG_TAG_PWMOUT "pwmout"
 
-static int max_duty = (int)pow(2, 13) - 1;
+static int max_duty = (int)pow(2, 10) - 1;
 
 ledc_timer_config_t pwm_timer = {
-	.duty_resolution = LEDC_TIMER_13_BIT,
-	.freq_hz = 5000,
+	.duty_resolution = LEDC_TIMER_10_BIT,
+	.freq_hz = 21000,
 	.speed_mode = LEDC_HIGH_SPEED_MODE,
 	.timer_num = LEDC_TIMER_0,
 	.clk_cfg = LEDC_AUTO_CLK
@@ -44,6 +44,7 @@ void config_pwm() {
 }
 
 void pwm_set_duty(float duty) {
+	if (duty > 1) duty = 1;
 	int real_duty = (int)(duty * (float)max_duty);
 	ledc_set_duty(LEDC_HIGH_SPEED_MODE, LEDC_CHANNEL_0, real_duty);
 	ledc_update_duty(LEDC_HIGH_SPEED_MODE, LEDC_CHANNEL_0);

@@ -12,33 +12,33 @@
 #include "pwmout.h"
 
 #define BIT24_MAX 0x7FFFFF
-#define BIT24_MIN 0x800000
-#define STEP RATE * 10
+#define STEP RATE * 2  //最大音量的统计周期，乘数为秒数
 
-static float MAX_NOW = 1;
-static float MIN_NOW = -1;
+const static float MAX_NOW_LIMIT = BIT24_MAX / 400;
+
+static float MAX_NOW = MAX_NOW_LIMIT;
+
 static int _step_num = 0;
 
-//int _logi = 0;
+int _logi = 0;
 
 static inline int32_t _proc_maxvol(int32_t data) {
+	int32_t r_data = abs(data);
 	if (_step_num < STEP) {
-		if (data > MAX_NOW) MAX_NOW = data;
-		if (data < MIN_NOW) MIN_NOW = data;
+		if (r_data > MAX_NOW) MAX_NOW = r_data;
 		_step_num++;
 	} else {
 		_step_num = 0;
-		MAX_NOW = MAX_NOW / 3;
-		MIN_NOW = MIN_NOW / 3;
-		if (MAX_NOW == 0) MAX_NOW = 1;
-		if (MIN_NOW == 0) MIN_NOW = -1;
+		MAX_NOW = MAX_NOW_LIMIT;
 	}
 
-	int32_t ret = 0;
-	if (data > 0) ret = ((float)BIT24_MAX / MAX_NOW) * data;
-	else ret = ((float)BIT24_MIN / MIN_NOW) * data;
+	int32_t ret = ((float)BIT24_MAX / MAX_NOW) * data;
 
-	//if ((_logi++ % 1000) == 0) ESP_LOGI(LOG_TAG_PWMOUT, "ret: %d, data: %d, max_now: %d, min_now: %d, step: %d, 24max: %d", ret, data, MAX_NOW, MIN_NOW, _step_num, BIT24_MAX);
+	float pp = (float)ret / data;
+
+	if ((_logi++ % 10000) == 0) ESP_LOGI(LOG_TAG_PWMOUT, "%2.2f, ret: %d, data: %d, max_now: %d, step: %d, 24max: %d", pp, ret, data, (int)MAX_NOW, _step_num, BIT24_MAX);
+
+	//if (r_data < BIT24_MAX / 10000) ret = 0;
 
 	return ret;
 }
