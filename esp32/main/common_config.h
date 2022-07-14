@@ -22,6 +22,6 @@
 #define EQ_TAG "eq"
 #define HTTP_TAG "http"
 #define CONFIG_TAG "config"
-
+#define FILTER_TAG "filter"
 
 #endif /* MAIN_COMMON_CONFIG_H_ */

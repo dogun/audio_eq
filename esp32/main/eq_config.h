@@ -12,43 +12,42 @@
 #include "config_store.h"
 #include "eq.h"
 
-#define CONFIG_SIZE 1024
+#define CONFIG_SIZE 2048
 
 #define CONFIG_KEY_L "l_config"
 #define CONFIG_KEY_R "r_config"
 
-void _ch2file(int ch, char* config, int size) {
+char* _ch2key(int ch) {
 	if (ch == L_CODE) {
-		read_config(CONFIG_KEY_L, config, size);
+		return CONFIG_KEY_L;
 	}else {
-		read_config(CONFIG_KEY_R, config, size);
+		return CONFIG_KEY_R;
 	}
 }
 
 void _load_eq(int ch) {
 	char buf[CONFIG_SIZE] = {0};
-	char config[64] = {0};
-	_ch2file(ch, config, sizeof(config));
-	read_config(config, buf, CONFIG_SIZE);
+	read_config(_ch2key(ch), buf, CONFIG_SIZE);
 
 	char* tk;
 	char* bbf = buf;
 	while ((tk = strsep(&bbf, "\n")) != NULL) {
 		if (strlen(tk) == 0)
 			continue;
+		if (!strstr(tk, "Fc") || !strstr(tk, "Gain") || !strstr(tk, "Q"))
+			continue;
 
-		char* token;
-		double cf = 0, gain = 0, q = 0;
+		char* token = strtok(tk, " ");
+		float cf = 0, gain = 0, q = 0;
 		int i = 0;
-		while ((token = strsep(&tk, " ")) != NULL) {
-			if (i == 0)
-				cf = strtod(token, NULL);
-			else if (i == 1)
-				gain = strtod(token, NULL);
-			else if (i == 2)
-				q = strtod(token, NULL);
+		while (token != NULL) {
+			if (i == 5) cf = strtof(token, NULL);
+			else if (i == 8) gain = strtof(token, NULL);
+			else if (i == 11) q = strtof(token, NULL);
 			i++;
+			token = strtok(NULL, " ");
 		}
+
 		if (ch == L_CODE) {
 			if (eq_len_l >= MAX_EQ_COUNT)
 				continue;

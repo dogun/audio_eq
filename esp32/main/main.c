@@ -19,6 +19,7 @@
 #include "maxvol_pwmout.h"
 #include "stereo2mono.h"
 #include "pwmout.h"
+#include "filter.h"
 
 typedef unsigned int size_t;
 
@@ -30,15 +31,16 @@ static int maxvol_config = 0;
 static SemaphoreHandle_t read_sem;
 static SemaphoreHandle_t write_l_sem;
 static SemaphoreHandle_t write_r_sem;
-static SemaphoreHandle_t eq_l_sem;
-static SemaphoreHandle_t eq_r_sem;
+static SemaphoreHandle_t proccess_l_sem;
+static SemaphoreHandle_t proccess_r_sem;
 
+static float up_start = 0.15;
 void pre_task(int32_t* src, int32_t* dst, int len) {
 	if (stereo2mono_config == 1) stereo2mono(src, dst, len);
 }
 
 void post_task(int32_t* src, int32_t* dst, int len) {
-	if (maxvol_config == 1) maxvol(src, dst, len, -1);
+	if (maxvol_config == 1) maxvol(src, dst, len, L_CODE, up_start);
 }
 
 void read_task() {
@@ -47,8 +49,8 @@ void read_task() {
 		xSemaphoreTake(read_sem, portMAX_DELAY);
 		i2s_read(i2s_num, (char*) data, BUF_SIZE * 4, &bytes_read, 100);
 		pre_task(data, data, BUF_SIZE);
-		xSemaphoreGive(eq_r_sem);
-		xSemaphoreGive(eq_l_sem);
+		xSemaphoreGive(proccess_r_sem);
+		xSemaphoreGive(proccess_l_sem);
 	}
 }
 
@@ -63,17 +65,17 @@ void write_task() {
 	}
 }
 
-void eq_l_task() {
+void p_l_task() {
 	while (true) {
-		xSemaphoreTake(eq_l_sem, portMAX_DELAY);
+		xSemaphoreTake(proccess_l_sem, portMAX_DELAY);
 		_apply_biquads_l(data, data, BUF_SIZE);
 		xSemaphoreGive(write_l_sem);
 	}
 }
 
-void eq_r_task() {
+void p_r_task() {
 	while (true) {
-		xSemaphoreTake(eq_r_sem, portMAX_DELAY);
+		xSemaphoreTake(proccess_r_sem, portMAX_DELAY);
 		_apply_biquads_r(data, data, BUF_SIZE);
 		xSemaphoreGive(write_r_sem);
 	}
@@ -135,6 +137,12 @@ void app_main(void) {
 	if (strlen(s2m) > 0) stereo2mono_config = atoi(s2m);
 	ESP_LOGI(MAIN_TAG, "read stereo2mono config: %s", s2m);
 
+	ESP_LOGI(MAIN_TAG, "read maxvol_upstart config");
+	char us[16] = {0};
+	read_config("us", us, sizeof(us));
+	if (strlen(us) > 0) up_start = atof(us);
+	ESP_LOGI(MAIN_TAG, "read maxvol_upstart config: %s", us);
+
 	ESP_LOGI(MAIN_TAG, "read maxvol config");
 	char maxvol[16] = {0};
 	read_config("maxvol", maxvol, sizeof(maxvol));
@@ -149,17 +157,17 @@ void app_main(void) {
 	i2s_set_pin(i2s_num, &pin_config);
 	ESP_LOGI(MAIN_TAG, "init i2s end");
 
-	ESP_LOGI(MAIN_TAG, "start eq task(read write eqx2)");
+	ESP_LOGI(MAIN_TAG, "start p task(read write eqx2)");
 	read_sem = xSemaphoreCreateBinary();
 	write_l_sem = xSemaphoreCreateBinary();
 	write_r_sem = xSemaphoreCreateBinary();
-	eq_l_sem = xSemaphoreCreateBinary();
-	eq_r_sem = xSemaphoreCreateBinary();
-	xTaskCreatePinnedToCore(&eq_l_task, "eq_task_l", 10000, NULL, 3, NULL, 1);
-	xTaskCreatePinnedToCore(&eq_r_task, "eq_task_r", 10000, NULL, 3, NULL, 0);
+	proccess_l_sem = xSemaphoreCreateBinary();
+	proccess_r_sem = xSemaphoreCreateBinary();
+	xTaskCreatePinnedToCore(&p_l_task, "p_task_l", 10000, NULL, 3, NULL, 1);
+	xTaskCreatePinnedToCore(&p_r_task, "p_task_r", 10000, NULL, 3, NULL, 0);
 	xTaskCreatePinnedToCore(&write_task, "write_task", 10000, NULL, 3, NULL, 0);
 	xTaskCreatePinnedToCore(&read_task, "read_task", 10000, NULL, 3, NULL, 1);
-	ESP_LOGI(MAIN_TAG, "eq task ok");
+	ESP_LOGI(MAIN_TAG, "p task ok");
 
 	ESP_LOGI(MAIN_TAG, "give read_sem, start task chain");
 	xSemaphoreGive(read_sem);

@@ -18,7 +18,7 @@
 
 #define LOG_TAG_PWMOUT "pwmout"
 
-static int max_duty = (int)pow(2, 10) - 1;
+static int max_duty = (int)powf(2, 10) - 1;
 
 ledc_timer_config_t pwm_timer = {
 	.duty_resolution = LEDC_TIMER_10_BIT,

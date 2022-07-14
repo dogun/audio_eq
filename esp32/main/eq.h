@@ -98,7 +98,7 @@ static void _mk_biquad(float dbgain, float cf, float q, t_biquad* b) {
   float omega = 2.0 * 3.14159265358979323846 * cf / RATE;
   float sn = sinf(omega);
   float cs = cosf(omega);
-  //float alpha = sn * sinh(M_LN2 / 2.0f * bw * omega / sn);  //use band width
+  //float alpha = sn * sinhf(M_LN2 / 2.0f * bw * omega / sn);  //use band width
   float alpha = sn / (2 * q);
 
   float alpha_m_A = alpha * A;
