@@ -17,7 +17,18 @@
 #include <esp_http_server.h>
 #include "config_store.h"
 
-void url_decode(char* res) {
+#define HTTP_TAG "http"
+
+void _str_remove_r(char* s) {
+	int i;
+	for (i = 0; i < strlen(s); ++i) {
+		if (s[i] == '\r') {
+			memmove(&s[i], &s[i + 1], strlen(&s[i + 1]) + 1);
+		}
+	}
+}
+
+void _url_decode(char* res) {
 	ESP_LOGI(HTTP_TAG, "urldecode res: %s", res);
 	int d = 0; /* whether or not the string is decoded */
 
@@ -47,7 +58,7 @@ void url_decode(char* res) {
 	ESP_LOGI(HTTP_TAG, "urldecode res ok: %s", res);
 }
 
-esp_err_t get_handler_edit(httpd_req_t* req) {
+esp_err_t _get_handler_edit(httpd_req_t* req) {
 	char* uri = strstr(req->uri, "=");
 
 	if (NULL == uri) {
@@ -66,7 +77,7 @@ esp_err_t get_handler_edit(httpd_req_t* req) {
 	return ESP_OK;
 }
 
-esp_err_t post_handler_edit(httpd_req_t* req) {
+esp_err_t _post_handler_edit(httpd_req_t* req) {
 	char content[1024] = {0};
 	int recv_size = MIN(req->content_len, sizeof(content));
 	int ret = httpd_req_recv(req, content, recv_size);
@@ -76,7 +87,8 @@ esp_err_t post_handler_edit(httpd_req_t* req) {
 		}
 		return ESP_FAIL;
 	}
-	url_decode(content);
+	_url_decode(content);
+	_str_remove_r(content);
 
 	char* token;
 	char* cc = (char*)content;
@@ -103,14 +115,14 @@ esp_err_t post_handler_edit(httpd_req_t* req) {
 httpd_uri_t uri_get_eq = {
 		.uri = "/edit",
 		.method = HTTP_GET,
-		.handler = get_handler_edit,
+		.handler = _get_handler_edit,
 		.user_ctx = NULL
 };
 
 httpd_uri_t uri_post_eq = {
 		.uri = "/edit",
 		.method = HTTP_POST,
-		.handler = post_handler_edit,
+		.handler = _post_handler_edit,
 		.user_ctx = NULL
 };
 
@@ -128,7 +140,7 @@ httpd_handle_t start_webserver(void) {
 }
 
 void stop_webserver(httpd_handle_t server) {
-	if (server) {
+	if (NULL != server) {
 		httpd_stop(server);
 	}
 }

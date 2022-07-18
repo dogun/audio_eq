@@ -11,7 +11,6 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <math.h>
-#include "common_config.h"
 
 typedef struct {
 	float max;

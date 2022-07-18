@@ -4,7 +4,17 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <math.h>
-#include "common_config.h"
+
+typedef struct {
+	float cf;
+	float q;
+	float gain;
+} EQ_CONFIG_ONE;
+
+typedef struct {
+	int count;
+	EQ_CONFIG_ONE* config;
+} EQ_CONFIG;
 
 typedef struct {
 	int n;
@@ -22,15 +32,15 @@ typedef struct {
 	float* gain;
 } Equalizer;
 
-Equalizer* create_equalizer(float* cf, float* q, float* gain, int count, float rate);
+Equalizer* create_equalizer(EQ_CONFIG* config, float rate);
 void free_equalizer(Equalizer* eq);
 float equalizer(Equalizer* eq, float input);
 
-Equalizer* create_equalizer(float* cf, float* q, float* gain, int count, float rate) {
-	if (count <= 0) return NULL;
+Equalizer* create_equalizer(EQ_CONFIG* config, float rate) {
+	if (NULL == config || config->count <= 0) return NULL;
 
 	Equalizer* eq = (Equalizer*)malloc(sizeof(Equalizer));
-	eq->n = count;
+	eq->n = config->count;
 	eq->a0 = (float*)malloc(eq->n * sizeof(float));
 	eq->a1 = (float*)malloc(eq->n * sizeof(float));
 	eq->a2 = (float*)malloc(eq->n * sizeof(float));
@@ -45,10 +55,10 @@ Equalizer* create_equalizer(float* cf, float* q, float* gain, int count, float r
 	eq->y1 = (float*)calloc(eq->n, sizeof(float));
 	eq->y2 = (float*)calloc(eq->n, sizeof(float));
 
-	for (int i = 0; i < count; i++) {
-		eq->cf[i] = cf[i];
-		eq->gain[i] = gain[i];
-		eq->q[i] = q[i];
+	for (int i = 0; i < config->count; i++) {
+		eq->cf[i] = config->config[i].cf;
+		eq->gain[i] = config->config[i].gain;
+		eq->q[i] = config->config[i].q;
 
 		float A = powf(10.0, eq->gain[i] / 40.0);
 		float omega = 2.0 * 3.14159265358979323846 * eq->cf[i] / rate;

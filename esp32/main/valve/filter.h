@@ -11,7 +11,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
-#include "common_config.h"
 
 #ifndef M_PI
 #define M_PI 3.14159265359
@@ -129,8 +128,6 @@ BWHighPass* create_bw_high_pass_filter(int order, float s, float f) {
 }
 BWBandPass* create_bw_band_pass_filter(int order, float s, float fl, float fu) {
 	if (fu <= fl) {
-		ESP_LOGE(FILTER_TAG,
-				"ERROR:Lower half-power frequency is smaller than higher half-power frequency");
 		return NULL;
 	}
 	BWBandPass* filter = (BWBandPass*) malloc(sizeof(BWBandPass));
@@ -166,8 +163,6 @@ BWBandPass* create_bw_band_pass_filter(int order, float s, float fl, float fu) {
 }
 BWBandStop* create_bw_band_stop_filter(int order, float s, float fl, float fu) {
 	if (fu <= fl) {
-		ESP_LOGE(FILTER_TAG,
-				"ERROR:Lower half-power frequency is smaller than higher half-power frequency");
 		return NULL;
 	}
 
