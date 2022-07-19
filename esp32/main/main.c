@@ -175,11 +175,11 @@ void app_main(void) {
 	httpd_handle_t server;
 	while (1) {
 		touch_pad_read(TOUCH_PAD_NUM8, &touch_value);
-		if(touch_value < 100) {
+		if(touch_value < 500) {
 			ESP_LOGI(MAIN_TAG, "T:[%d] ", touch_value);
 			vTaskDelay(3000 / portTICK_PERIOD_MS);
 			touch_pad_read(TOUCH_PAD_NUM8, &touch_value);
-			if(touch_value < 100) {
+			if(touch_value < 500) {
 				if (http_started == 0) {
 					ESP_LOGI(MAIN_TAG, "start http server");
 					ESP_ERROR_CHECK(esp_wifi_start());
