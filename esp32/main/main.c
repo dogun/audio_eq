@@ -10,7 +10,6 @@
 #include <stddef.h>
 #include <inttypes.h>
 #include <freertos/semphr.h>
-#include "driver/touch_pad.h"
 #include "common_config.h"
 #include "eq_config.h"
 #include "i2s_config.h"
@@ -98,10 +97,11 @@ static void wifi_event_handler(void* arg, esp_event_base_t event_base,
 	}
 }
 
+esp_netif_t* wifi_ap;
 void wifi_init_softap(void) {
 	ESP_ERROR_CHECK(esp_netif_init());
 	ESP_ERROR_CHECK(esp_event_loop_create_default());
-	esp_netif_create_default_wifi_ap();
+	wifi_ap = esp_netif_create_default_wifi_ap();
 
 	wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
 	ESP_ERROR_CHECK(esp_wifi_init(&cfg));
@@ -118,6 +118,14 @@ void wifi_init_softap(void) {
 
 	ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_AP));
 	ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_AP, &wifi_config));
+}
+
+void wifi_deinit_softap(void) {
+	esp_event_handler_unregister(WIFI_EVENT, ESP_EVENT_ANY_ID, wifi_event_handler);
+	ESP_ERROR_CHECK(esp_wifi_deinit());
+	esp_netif_destroy_default_wifi(wifi_ap);
+	ESP_ERROR_CHECK(esp_event_loop_delete_default());
+	esp_netif_deinit();
 }
 
 void app_main(void) {
@@ -164,38 +172,41 @@ void app_main(void) {
 	ESP_LOGI(MAIN_TAG, "give read_sem, start task chain");
 	xSemaphoreGive(read_sem);
 
-	wifi_init_softap();
+	gpio_pad_select_gpio(GPIO_NUM_23);
+	gpio_set_direction(GPIO_NUM_23, GPIO_MODE_INPUT);
+	gpio_pad_select_gpio(GPIO_NUM_2);
+	gpio_set_direction(GPIO_NUM_2, GPIO_MODE_OUTPUT);
 
-	ESP_ERROR_CHECK(touch_pad_init());
-	touch_pad_set_voltage(TOUCH_HVOLT_2V7, TOUCH_LVOLT_0V5, TOUCH_HVOLT_ATTEN_1V);
-	touch_pad_config(TOUCH_PAD_NUM8, 0);
-
-	uint16_t touch_value;
 	int http_started = 0;
 	httpd_handle_t server;
 	while (1) {
-		touch_pad_read(TOUCH_PAD_NUM8, &touch_value);
-		if(touch_value < 500) {
-			ESP_LOGI(MAIN_TAG, "T:[%d] ", touch_value);
+		int gpio_level = gpio_get_level(GPIO_NUM_23);
+		//ESP_LOGI(MAIN_TAG, "T:[%d] ", gpio_level);
+
+		if(gpio_level == 1) {
+			ESP_LOGI(MAIN_TAG, "T:[%d] ", gpio_level);
 			vTaskDelay(3000 / portTICK_PERIOD_MS);
-			touch_pad_read(TOUCH_PAD_NUM8, &touch_value);
-			if(touch_value < 500) {
+			gpio_level = gpio_get_level(GPIO_NUM_23);
+			if(gpio_level == 1) {
 				if (http_started == 0) {
+					wifi_init_softap();
 					ESP_LOGI(MAIN_TAG, "start http server");
 					ESP_ERROR_CHECK(esp_wifi_start());
 					server = start_webserver();
+					gpio_set_level(GPIO_NUM_2, 1);
 					http_started = 1;
 				}else {
 					stop_webserver(server);
 					esp_wifi_stop();
+					wifi_deinit_softap();
 					http_started = 0;
+					gpio_set_level(GPIO_NUM_2, 0);
 				}
 				vTaskDelay(3000 / portTICK_PERIOD_MS);
 			}
 		}
+
 		vTaskDelay(500 / portTICK_PERIOD_MS);
 	}
-
-	//vTaskSuspend(NULL);
 }
 

@@ -1,7 +1,7 @@
 /*
  * i2s_config.h
  *
- *  Created on: 2022Äê5ÔÂ6ÈÕ
+ *  Created on: 2022ï¿½ï¿½5ï¿½ï¿½6ï¿½ï¿½
  *      Author: yuexq
  */
 
@@ -33,10 +33,14 @@ static const i2s_config_t i2s_config = {
 
 static const i2s_pin_config_t pin_config = {
 		.mck_io_num = 0,
-		.bck_io_num = 27,
-		.ws_io_num = 26,
-		.data_out_num = 25,
-		.data_in_num = 23
+		//.bck_io_num = 27,
+		//.ws_io_num = 26,
+		//.data_out_num = 25,
+		//.data_in_num = 23
+		.bck_io_num = 26,
+		.ws_io_num = 27,
+		.data_out_num = 33,
+		.data_in_num = 25
 };
 //end i2s config
 

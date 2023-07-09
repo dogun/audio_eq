@@ -1,7 +1,7 @@
 /*
  * http.h
  *
- *  Created on: 2022Äê5ÔÂ17ÈÕ
+ *  Created on: 2022ï¿½ï¿½5ï¿½ï¿½17ï¿½ï¿½
  *      Author: yuexq
  */
 
@@ -93,6 +93,7 @@ esp_err_t post_handler_edit(httpd_req_t* req) {
 
 	char* sp = strstr(config_key, "&");
 	if (NULL != sp) sp[0] = 0;
+	if (NULL == data) data = "";
 	save_config(config_key, data);
 
 	char* resp = "OK";
