@@ -1,0 +1,21 @@
+/*
+ * test_map.c
+ *
+ *  Created on: 2022Äê8ÔÂ1ÈÕ
+ *      Author: yuexu
+ */
+
+#include "str_key_map.h"
+
+
+int main() {
+	STR_KEY_MAP* map = create_str_key_map(100);
+	int i = str_key_map_put(map, "abc", "def");
+	int i1 = str_key_map_put(map, "abc1", "def1");
+	int i2 = str_key_map_put(map, "abc2", "def2");
+	int i3 = str_key_map_put(map, "abc3", "def3");
+	int i4 = str_key_map_put(map, "abc4", "def4");
+	printf("%d %d %d %d %d\n", i, i1, i2, i3, i4);
+	printf("%s %s %s %s %s", (char*)str_key_map_get(map, "abc"), (char*)str_key_map_get(map, "abc1"), (char*)str_key_map_get(map, "abc2"), (char*)str_key_map_get(map, "abc3"), (char*)str_key_map_get(map, "abc4"));
+	return 1;
+}

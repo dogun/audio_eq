@@ -1,0 +1,84 @@
+/*
+ * str_key_map.h
+ *
+ *  Created on: 2022年7月31日
+ *      Author: yuexu
+ */
+
+#ifndef MAIN_CONFIG_STR_KEY_MAP_H_
+#define MAIN_CONFIG_STR_KEY_MAP_H_
+
+#include <stdio.h>
+#include <stdlib.h>
+#include "../config/util.h"
+
+typedef struct {
+	char* key;
+	void* val;
+} STR_KEY_MAP_NODE;
+
+typedef struct {
+	int len;
+	STR_KEY_MAP_NODE* node_list;
+} STR_KEY_MAP;
+
+STR_KEY_MAP* create_str_key_map(int size) {
+	STR_KEY_MAP* map = (STR_KEY_MAP*)malloc(sizeof(STR_KEY_MAP));
+	map->len = size;
+	map->node_list = (STR_KEY_MAP_NODE*)malloc(map->len * sizeof(STR_KEY_MAP_NODE));
+	return map;
+}
+
+int _str_key_map_hash(char* key) {
+	int len = strlen(key);
+	int data = 0;
+	int i;
+	for (i = 0; i < len; ++i) {
+		char c = key[i];
+		data += c;
+	}
+	if (data < 0) data = -data;
+	//printf("hash: %d, key: %s\n", data, key);
+	return data;
+}
+
+void* str_key_map_get(STR_KEY_MAP* map, char* key) {
+	int c = _str_key_map_hash(key);
+	int i;
+	for (i = (c % map->len); i < map->len; ++i) {
+		STR_KEY_MAP_NODE node = map->node_list[i];
+		//printf("%s %s\n", node.key, (char*)node.val);
+		if (NULL != node.key && strcmp(key, node.key) == 0) {
+			return node.val;
+		}
+		if (i == map->len) i = 0;
+	}
+	return NULL;
+}
+
+int str_key_map_put(STR_KEY_MAP* map, char* key, void* val) {
+	int c = _str_key_map_hash(key);
+	int i;
+	for (i = (c % map->len); i < map->len; ++i) {
+		if (map->node_list[i].key == NULL) {
+			map->node_list[i].key = _new_str(key);
+			map->node_list[i].val = val;
+			return i;
+		}
+		if (i == map->len) i = 0; //没空间的话从0开始继续
+	}
+	return -1;
+}
+
+void free_str_key_map(STR_KEY_MAP* map) {
+	if (NULL == map) return;
+	int i;
+	for (i = 0; i < map->len; ++i) {
+		STR_KEY_MAP_NODE node = map->node_list[i];
+		if (NULL != node.key) free(node.key);
+	}
+	free(map->node_list);
+	free(map);
+}
+
+#endif /* MAIN_CONFIG_STR_KEY_MAP_H_ */

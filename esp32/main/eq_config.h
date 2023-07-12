@@ -12,7 +12,7 @@
 #include "config_store.h"
 #include "eq.h"
 
-#define CONFIG_SIZE 1024
+#define CONFIG_SIZE 900
 
 #define CONFIG_KEY_L "l_config"
 #define CONFIG_KEY_R "r_config"

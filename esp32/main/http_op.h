@@ -57,10 +57,10 @@ esp_err_t get_handler_edit(httpd_req_t* req) {
 
 	uri += 1;
 
-	char config[700] = {0};
+	char config[CONFIG_SIZE] = {0};
 	read_config(uri, config, sizeof(config));
 	char* html = "<html><body><form method=\"post\"><input type=\"hidden\" name=\"k\" value=\"%s\" /><textarea name=\"eq\" style=\"width:300px;height:600px\">%s</textarea><input type=\"submit\" value=\"OK\" /></form></body></html>";
-	char data[1024] = {0};
+	char data[CONFIG_SIZE + 220] = {0};
 	sprintf(data, html, uri, config);
 	httpd_resp_send(req, data, strlen(data));
 	return ESP_OK;
