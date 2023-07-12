@@ -1,7 +1,7 @@
 /*
  * eq_config.h
  *
- *  Created on: 2022Äê5ÔÂ17ÈÕ
+ *  Created on: 2022ï¿½ï¿½5ï¿½ï¿½17ï¿½ï¿½
  *      Author: yuexq
  */
 
@@ -25,12 +25,38 @@ void _ch2file(int ch, char* config, int size) {
 	}
 }
 
-void _load_eq(int ch) {
-	char buf[CONFIG_SIZE] = {0};
-	char config[64] = {0};
-	_ch2file(ch, config, sizeof(config));
-	read_config(config, buf, CONFIG_SIZE);
+void _load_eq_new(char* buf, int ch) {
+	char* tk;
+	char* bbf = buf;
+	while ((tk = strsep(&bbf, "\n")) != NULL) {
+		if (strlen(tk) == 0)
+			continue;
 
+		if (!strstr(tk, "Fc") || !strstr(tk, "Gain") || !strstr(tk, "Q")) continue;
+
+		char* token = strtok(tk, " ");
+		double cf = 0, gain = 0, q = 0;
+		int i = 0;
+		while (token != NULL) {
+			if (i == 5) cf = strtod(token, NULL);
+			else if (i == 8) gain = strtod(token, NULL);
+			else if (i == 11) q = strtod(token, NULL);
+			i++;
+			token = strtok(NULL, " ");
+		}
+		if (ch == L_CODE) {
+			if (eq_len_l >= MAX_EQ_COUNT)
+				continue;
+			_mk_biquad(gain, cf, q, &(l_biquads[eq_len_l++]));
+		} else {
+			if (eq_len_r >= MAX_EQ_COUNT)
+				continue;
+			_mk_biquad(gain, cf, q, &(r_biquads[eq_len_r++]));
+		}
+	}
+}
+
+void _load_eq_old(char* buf, int ch) {
 	char* tk;
 	char* bbf = buf;
 	while ((tk = strsep(&bbf, "\n")) != NULL) {
@@ -58,6 +84,19 @@ void _load_eq(int ch) {
 				continue;
 			_mk_biquad(gain, cf, q, &(r_biquads[eq_len_r++]));
 		}
+	}
+}
+
+void _load_eq(int ch) {
+	char buf[CONFIG_SIZE] = {0};
+	char config[64] = {0};
+	_ch2file(ch, config, sizeof(config));
+	read_config(config, buf, CONFIG_SIZE);
+
+	if (strstr(buf, "Gain")) {
+		_load_eq_new(buf, ch);
+	} else {
+		_load_eq_old(buf, ch);
 	}
 }
 
