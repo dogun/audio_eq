@@ -21,8 +21,10 @@
 
 typedef unsigned int size_t;
 
-#define BUF_SIZE 256
-static int32_t data[BUF_SIZE];
+#define BUF_SIZE 512
+static int32_t data1[BUF_SIZE] = {0};
+static int32_t data2[BUF_SIZE] = {0};
+static int buf_index = 1;
 static int stereo2mono_config = 0;
 static int maxvol_config = 0;
 
@@ -32,8 +34,74 @@ static SemaphoreHandle_t write_r_sem;
 static SemaphoreHandle_t eq_l_sem;
 static SemaphoreHandle_t eq_r_sem;
 
+#ifdef TEST_1
+	int test_count = 0;
+	int c0 = 0;
+	int c1 = 0;
+	int c2 = 0;
+	int c3 = 0;
+	int c4 = 0;
+	int c5 = 0;
+	int c6 = 0;
+	int c7 = 0;
+	int c8 = 0;
+	int c9 = 0;
+	int p0 = 0;
+	int M = 8388608;
+	int p = 1;
+#endif
+
 void pre_task(int32_t* src, int32_t* dst, int len) {
 	if (stereo2mono_config == 1) stereo2mono(src, dst, len);
+#ifdef TEST_1
+	//For Test
+	int i;
+	for (i = 0; i < len; i += 2) {
+		int32_t rl = src[i];
+		int32_t rr = src[i+1];
+
+		rl = rl >> 8;
+		rr = rr >> 8;
+
+		if (test_count >= RATE) {
+			ESP_LOGI("TEST", "c0:%d c1:%d c2:%d c3:%d c4:%d c5:%d c6:%d c7:%d c8:%d c9:%d p0:%d", c0, c1, c2, c3, c4, c5, c6, c7, c8, c9, p0);
+			test_count = 0;
+			c0 = c1 = c2 = c3 = c4 = c5 = c6 = c7 = c8 = c9 = p0 = 0;
+		}
+
+		test_count += 1;
+		rl = abs(rr) + abs(rl);
+
+		if ((p > 0 && rl / p > 10) || (rl > 0 && p / rl > 10)) p0 += 1;
+		p = rl;
+
+		if (rl < M / 10000) c0 += 1;
+		else if (rl < M / 10000 * 2) c1 += 1;
+		else if (rl < M / 10000 * 3) c2 += 1;
+		else if (rl < M / 10000 * 4) c3 += 1;
+		else if (rl < M / 10000 * 5) c4 += 1;
+		else if (rl < M / 10000 * 6) c5 += 1;
+		else if (rl < M / 10000 * 7) c6 += 1;
+		else if (rl < M / 10000 * 8) c7 += 1;
+		else if (rl < M / 10000 * 9) c8 += 1;
+		else c9 += 1;
+	}
+#endif
+}
+
+int32_t* get_buf() {
+	if (buf_index == 1) return data1;
+	else return data2;
+}
+
+int32_t* get_sec_buf() {
+	if (buf_index == 1) return data2;
+	else return data1;
+}
+
+void switch_buf() {
+	if (buf_index == 1) buf_index = 2;
+	else buf_index = 1;
 }
 
 void post_task(int32_t* src, int32_t* dst, int len) {
@@ -44,8 +112,9 @@ void read_task() {
 	size_t bytes_read = 0;
 	while (true) {
 		xSemaphoreTake(read_sem, portMAX_DELAY);
-		i2s_read(i2s_num, (char*) data, BUF_SIZE * 4, &bytes_read, 100);
-		pre_task(data, data, BUF_SIZE);
+		int32_t* bf = get_buf();
+		i2s_read(i2s_num, (char*)bf, BUF_SIZE * sizeof(int32_t), &bytes_read, 100);
+		pre_task(bf, bf, BUF_SIZE);
 		xSemaphoreGive(eq_r_sem);
 		xSemaphoreGive(eq_l_sem);
 	}
@@ -53,11 +122,47 @@ void read_task() {
 
 void write_task() {
 	size_t bytes_write = 0;
+	//换算delay帧数
+	int l_f = l_delay * RATE / 1000;
+	int r_f = r_delay * RATE / 1000;
+	if (l_f > BUF_SIZE / 2) l_f = BUF_SIZE / 2;
+	if (r_f > BUF_SIZE / 2) r_f = BUF_SIZE / 2;
+	if (l_f > 0 && r_f > 0) { //取差值
+		if (l_f > r_f) {
+			l_f = l_f - r_f;
+			r_f = 0;
+		}else {
+			r_f = r_f - l_f;
+			l_f = 0;
+		}
+	}
+
 	while (true) {
 		xSemaphoreTake(write_l_sem, portMAX_DELAY);
 		xSemaphoreTake(write_r_sem, portMAX_DELAY);
-		post_task(data, data, BUF_SIZE);
-		i2s_write(i2s_num, (char*) data, BUF_SIZE * 4, &bytes_write, 100);
+
+		int32_t* bf = get_buf();
+		post_task(bf, bf, BUF_SIZE);
+
+		if (l_delay == 0 && r_delay == 0) {
+			i2s_write(i2s_num, (char*)bf, BUF_SIZE * sizeof(int32_t), &bytes_write, 100);
+		}else {
+			//处理delay
+			int32_t data[BUF_SIZE] = {0};
+			//先把需要delay的声道的剩余数据，从上一个buf中取出来，再续现在的buf
+			int32_t* sec_bf = get_sec_buf();
+			for (int i = 0; i < BUF_SIZE / 2; ++i) {
+				int l_index = i - l_f;
+				int r_index = i - r_f;
+				int32_t l_val = (l_index >= 0) ? bf[l_index * 2] : sec_bf[BUF_SIZE + l_index * 2];
+				int32_t r_val = (r_index >= 0) ? bf[r_index * 2 + 1] : sec_bf[BUF_SIZE + r_index * 2 + 1];
+				data[i * 2] = l_val;
+				data[i * 2 + 1] = r_val;
+			}
+			i2s_write(i2s_num, (char*) data, BUF_SIZE * sizeof(int32_t), &bytes_write, 100);
+		}
+
+		switch_buf();
 		xSemaphoreGive(read_sem);
 	}
 }
@@ -65,7 +170,8 @@ void write_task() {
 void eq_l_task() {
 	while (true) {
 		xSemaphoreTake(eq_l_sem, portMAX_DELAY);
-		_apply_biquads_l(data, data, BUF_SIZE);
+		int32_t* bf = get_buf();
+		_apply_biquads_l(bf, bf, BUF_SIZE);
 		xSemaphoreGive(write_l_sem);
 	}
 }
@@ -73,7 +179,8 @@ void eq_l_task() {
 void eq_r_task() {
 	while (true) {
 		xSemaphoreTake(eq_r_sem, portMAX_DELAY);
-		_apply_biquads_r(data, data, BUF_SIZE);
+		int32_t* bf = get_buf();
+		_apply_biquads_r(bf, bf, BUF_SIZE);
 		xSemaphoreGive(write_r_sem);
 	}
 }
@@ -128,6 +235,8 @@ void wifi_deinit_softap(void) {
 	esp_netif_deinit();
 }
 
+#define WIFI_ON GPIO_NUM_23
+
 void app_main(void) {
 	ESP_LOGI(MAIN_TAG, "config fs");
 	init_fs();
@@ -172,21 +281,21 @@ void app_main(void) {
 	ESP_LOGI(MAIN_TAG, "give read_sem, start task chain");
 	xSemaphoreGive(read_sem);
 
-	gpio_pad_select_gpio(GPIO_NUM_23);
-	gpio_set_direction(GPIO_NUM_23, GPIO_MODE_INPUT);
+	gpio_pad_select_gpio(WIFI_ON);
+	gpio_set_direction(WIFI_ON, GPIO_MODE_INPUT);
 	gpio_pad_select_gpio(GPIO_NUM_2);
 	gpio_set_direction(GPIO_NUM_2, GPIO_MODE_OUTPUT);
 
 	int http_started = 0;
 	httpd_handle_t server;
 	while (1) {
-		int gpio_level = gpio_get_level(GPIO_NUM_23);
+		int gpio_level = gpio_get_level(WIFI_ON);
 		//ESP_LOGI(MAIN_TAG, "T:[%d] ", gpio_level);
 
 		if(gpio_level == 1) {
 			ESP_LOGI(MAIN_TAG, "T:[%d] ", gpio_level);
 			vTaskDelay(3000 / portTICK_PERIOD_MS);
-			gpio_level = gpio_get_level(GPIO_NUM_23);
+			gpio_level = gpio_get_level(WIFI_ON);
 			if(gpio_level == 1) {
 				if (http_started == 0) {
 					wifi_init_softap();
@@ -209,4 +318,3 @@ void app_main(void) {
 		vTaskDelay(500 / portTICK_PERIOD_MS);
 	}
 }
-

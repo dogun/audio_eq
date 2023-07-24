@@ -44,14 +44,26 @@ void _load_eq_new(char* buf, int ch) {
 			i++;
 			token = strtok(NULL, " ");
 		}
-		if (ch == L_CODE) {
-			if (eq_len_l >= MAX_EQ_COUNT)
-				continue;
-			_mk_biquad(gain, cf, q, &(l_biquads[eq_len_l++]));
+		if (i == 1) { //只有一个数字
+			if (ch == L_CODE) {
+				l_delay = cf;
+				ESP_LOGI(EQ_TAG, "l delay: %f", cf);
+			}else {
+				r_delay = cf;
+				ESP_LOGI(EQ_TAG, "r delay: %f", cf);
+			}
+		} else if(i > 11) {
+			if (ch == L_CODE) {
+				if (eq_len_l >= MAX_EQ_COUNT)
+					continue;
+				_mk_biquad(gain, cf, q, &(l_biquads[eq_len_l++]));
+			} else {
+				if (eq_len_r >= MAX_EQ_COUNT)
+					continue;
+				_mk_biquad(gain, cf, q, &(r_biquads[eq_len_r++]));
+			}
 		} else {
-			if (eq_len_r >= MAX_EQ_COUNT)
-				continue;
-			_mk_biquad(gain, cf, q, &(r_biquads[eq_len_r++]));
+			ESP_LOGW(EQ_TAG, "_load_eq_new error: %s", tk);
 		}
 	}
 }
@@ -75,14 +87,26 @@ void _load_eq_old(char* buf, int ch) {
 				q = strtod(token, NULL);
 			i++;
 		}
-		if (ch == L_CODE) {
-			if (eq_len_l >= MAX_EQ_COUNT)
-				continue;
-			_mk_biquad(gain, cf, q, &(l_biquads[eq_len_l++]));
+		if (i == 1) { //只有一个数字
+			if (ch == L_CODE) {
+				l_delay = cf;
+				ESP_LOGI(EQ_TAG, "l delay: %f", cf);
+			}else {
+				r_delay = cf;
+				ESP_LOGI(EQ_TAG, "r delay: %f", cf);
+			}
+		} else if (i == 3) {
+			if (ch == L_CODE) {
+				if (eq_len_l >= MAX_EQ_COUNT)
+					continue;
+				_mk_biquad(gain, cf, q, &(l_biquads[eq_len_l++]));
+			} else {
+				if (eq_len_r >= MAX_EQ_COUNT)
+					continue;
+				_mk_biquad(gain, cf, q, &(r_biquads[eq_len_r++]));
+			}
 		} else {
-			if (eq_len_r >= MAX_EQ_COUNT)
-				continue;
-			_mk_biquad(gain, cf, q, &(r_biquads[eq_len_r++]));
+			ESP_LOGW(EQ_TAG, "_load_eq_old error: %s", tk);
 		}
 	}
 }

@@ -36,6 +36,8 @@ int eq_len_r;
 int eq_len_l;
 static t_biquad r_biquads[MAX_EQ_COUNT];
 static t_biquad l_biquads[MAX_EQ_COUNT];
+static float r_delay = 0;
+static float l_delay = 0;
 
 static inline void _biquads_x(int32_t* src, int32_t* dst, int len, t_biquad* biquad, int start, int eqline) {
 	int i, di;
@@ -89,7 +91,7 @@ static inline float _apply_biquads_one(float s, t_biquad* b) {
  */
 static void _mk_biquad(float dbgain, float cf, float q, t_biquad* b) {
   if(b == NULL) {
-	  fprintf(stderr, "biquad NULL\n");
+	  ESP_LOGE(EQ_TAG, "biquad NULL");
 	  exit(1);
   }
 

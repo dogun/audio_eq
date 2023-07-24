@@ -1,7 +1,7 @@
 /*
  * common_config.h
  *
- *  Created on: 2022Äê5ÔÂ6ÈÕ
+ *  Created on: 2022-5-6
  *      Author: yuexq
  */
 
@@ -23,5 +23,6 @@
 #define HTTP_TAG "http"
 #define CONFIG_TAG "config"
 
+//#define TEST_1 1
 
 #endif /* MAIN_COMMON_CONFIG_H_ */
