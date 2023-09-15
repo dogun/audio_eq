@@ -1,23 +1,12 @@
-#include <esp_err.h>
-#include <esp_event_legacy.h>
-#include <esp_intr_alloc.h>
-#include <math.h>
-#include <nvs_flash.h>
-#include <stdbool.h>
-#include <stdio.h>
-#include <sys/_stdint.h>
-#include <stdlib.h>
-#include <stddef.h>
-#include <inttypes.h>
-#include <freertos/semphr.h>
-#include "common_config.h"
+﻿#include "eq.h"
+#include "config_store.h"
 #include "eq_config.h"
-#include "i2s_config.h"
-#include "eq.h"
 #include "http_op.h"
+#include "i2s_config.h"
 #include "maxvol_pwmout.h"
-#include "stereo2mono.h"
 #include "pwmout.h"
+#include "stereo2mono.h"
+
 
 typedef unsigned int size_t;
 
@@ -33,6 +22,7 @@ static SemaphoreHandle_t write_l_sem;
 static SemaphoreHandle_t write_r_sem;
 static SemaphoreHandle_t eq_l_sem;
 static SemaphoreHandle_t eq_r_sem;
+
 
 #ifdef TEST_1
 	int test_count = 0;
@@ -194,15 +184,16 @@ static void wifi_event_handler(void* arg, esp_event_base_t event_base,
 	if (event_id == WIFI_EVENT_AP_STACONNECTED) {
 		wifi_event_ap_staconnected_t* event =
 				(wifi_event_ap_staconnected_t*) event_data;
-		ESP_LOGI(MAIN_TAG, "station "MACSTR" join, AID=%d", MAC2STR(event->mac),
+		ESP_LOGI(MAIN_TAG, "station %s join, AID=%d", (char*)event->mac,
 				event->aid);
 	} else if (event_id == WIFI_EVENT_AP_STADISCONNECTED) {
 		wifi_event_ap_stadisconnected_t* event =
 				(wifi_event_ap_stadisconnected_t*) event_data;
-		ESP_LOGI(MAIN_TAG, "station "MACSTR" leave, AID=%d",
-				MAC2STR(event->mac), event->aid);
+		ESP_LOGI(MAIN_TAG, "station %s leave, AID=%d",
+				(char*)event->mac, event->aid);
 	}
 }
+
 
 esp_netif_t* wifi_ap;
 void wifi_init_softap(void) {
@@ -236,6 +227,7 @@ void wifi_deinit_softap(void) {
 }
 
 #define WIFI_ON GPIO_NUM_23
+
 
 void app_main(void) {
 	ESP_LOGI(MAIN_TAG, "config fs");
@@ -281,9 +273,9 @@ void app_main(void) {
 	ESP_LOGI(MAIN_TAG, "give read_sem, start task chain");
 	xSemaphoreGive(read_sem);
 
-	gpio_pad_select_gpio(WIFI_ON);
+	gpio_reset_pin(WIFI_ON);
 	gpio_set_direction(WIFI_ON, GPIO_MODE_INPUT);
-	gpio_pad_select_gpio(GPIO_NUM_2);
+	gpio_reset_pin(GPIO_NUM_2);
 	gpio_set_direction(GPIO_NUM_2, GPIO_MODE_OUTPUT);
 
 	int http_started = 0;
@@ -318,3 +310,4 @@ void app_main(void) {
 		vTaskDelay(500 / portTICK_PERIOD_MS);
 	}
 }
+

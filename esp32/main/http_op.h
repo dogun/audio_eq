@@ -31,7 +31,7 @@ void url_decode(char* res) {
 			if (res[i] == '%') {
 				if (res[i + 1] == 0)
 					return;
-				if (isxdigit(res[i + 1]) && isxdigit(res[i + 2])) {
+				if (isxdigit((int)res[i + 1]) && isxdigit((int)res[i + 2])) {
 					d = 0;
 					e_str[0] = res[i + 1];
 					e_str[1] = res[i + 2];

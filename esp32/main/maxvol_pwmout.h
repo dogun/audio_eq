@@ -36,7 +36,7 @@ static inline int32_t _proc_maxvol(int32_t data) {
 
 	float pp = (float)ret / data;
 
-	if ((_logi++ % 10000) == 0) ESP_LOGI(LOG_TAG_PWMOUT, "%2.2f, ret: %d, data: %d, max_now: %d, step: %d, 24max: %d", pp, ret, data, (int)MAX_NOW, _step_num, BIT24_MAX);
+	if ((_logi++ % 10000) == 0) ESP_LOGI(LOG_TAG_PWMOUT, "%2.2f, ret: %d, data: %d, max_now: %d, step: %d, 24max: %d", pp, (int)ret, (int)data, (int)MAX_NOW, _step_num, (int)BIT24_MAX);
 
 	//if (r_data < BIT24_MAX / 10000) ret = 0;
 
