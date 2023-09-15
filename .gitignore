@@ -64,3 +64,6 @@ yummyBasic
 bin
 measure
 config/focus*
+.metadata
+esp32/.metadata
+esp32/sdkconfig.old
