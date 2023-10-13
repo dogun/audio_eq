@@ -62,7 +62,6 @@ record
 wave
 yummyBasic
 bin
-measure
 config/focus*
 .metadata
 esp32/.metadata

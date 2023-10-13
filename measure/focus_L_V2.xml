@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<equalization>
+    <speaker location="leftFront" headroom="3">
+        <filter number="1" enabled="true">
+            <frequency>218.0</frequency>
+            <level>7.5</level>
+            <Q>1.54</Q>
+        </filter>
+        <filter number="2" enabled="true">
+            <frequency>8477.0</frequency>
+            <level>-6.2</level>
+            <Q>1.43</Q>
+        </filter>
+        <filter number="3" enabled="true">
+            <frequency>90.10</frequency>
+            <level>-12.6</level>
+            <Q>4.13</Q>
+        </filter>
+        <filter number="4" enabled="true">
+            <frequency>4212.0</frequency>
+            <level>4.6</level>
+            <Q>1.76</Q>
+        </filter>
+        <filter number="5" enabled="true">
+            <frequency>218.0</frequency>
+            <level>-12.6</level>
+            <Q>4.34</Q>
+        </filter>
+        <filter number="6" enabled="true">
+            <frequency>308.0</frequency>
+            <level>-8.4</level>
+            <Q>5.38</Q>
+        </filter>
+        <filter number="7" enabled="true">
+            <frequency>2367.0</frequency>
+            <level>-1.3</level>
+            <Q>4.34</Q>
+        </filter>
+        <filter number="8" enabled="true">
+            <frequency>609.0</frequency>
+            <level>-8.1</level>
+            <Q>4.96</Q>
+        </filter>
+        <filter number="9" enabled="true">
+            <frequency>81.50</frequency>
+            <level>9.0</level>
+            <Q>6.98</Q>
+        </filter>
+        <filter number="10" enabled="true">
+            <frequency>1422.0</frequency>
+            <level>-7.0</level>
+            <Q>5.74</Q>
+        </filter>
+        <filter number="11" enabled="true">
+            <frequency>118.0</frequency>
+            <level>-5.5</level>
+            <Q>6.97</Q>
+        </filter>
+        <filter number="12" enabled="true">
+            <frequency>42.00</frequency>
+            <level>-9.6</level>
+            <Q>12.57</Q>
+        </filter>
+        <filter number="13" enabled="true">
+            <frequency>51.90</frequency>
+            <level>-6.3</level>
+            <Q>6.89</Q>
+        </filter>
+        <filter number="14" enabled="true">
+            <frequency>189.5</frequency>
+            <level>-4.9</level>
+            <Q>9.58</Q>
+        </filter>
+        <filter number="15" enabled="true">
+            <frequency>1880.0</frequency>
+            <level>3.5</level>
+            <Q>6.12</Q>
+        </filter>
+        <filter number="16" enabled="true">
+            <frequency>963.0</frequency>
+            <level>-2.2</level>
+            <Q>5.68</Q>
+        </filter>
+        <filter number="17" enabled="true">
+            <frequency>31.20</frequency>
+            <level>-5.1</level>
+            <Q>15.83</Q>
+        </filter>
+    </speaker>
+</equalization>
