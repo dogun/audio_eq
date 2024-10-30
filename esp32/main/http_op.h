@@ -60,9 +60,12 @@ esp_err_t get_handler_edit(httpd_req_t* req) {
 	char config[CONFIG_SIZE] = {0};
 	read_config(uri, config, sizeof(config));
 	char* html = "<html><body><form method=\"post\"><input type=\"hidden\" name=\"k\" value=\"%s\" /><textarea name=\"eq\" style=\"width:300px;height:600px\">%s</textarea><input type=\"submit\" value=\"OK\" /></form></body></html>";
-	char data[CONFIG_SIZE + 220] = {0};
+	char data[CONFIG_SIZE + 214] = {0};
+	ESP_LOGI(HTTP_TAG, "config: %s (%d), uri: %s (%d)", config, strlen(config), uri, strlen(uri));
 	sprintf(data, html, uri, config);
-	httpd_resp_send(req, data, strlen(data));
+	ESP_LOGI(HTTP_TAG, "data: %s (%d)", data, strlen(data));
+	httpd_resp_send(req, data, HTTPD_RESP_USE_STRLEN);
+	ESP_LOGI(HTTP_TAG, "3");
 	return ESP_OK;
 }
 
@@ -109,7 +112,7 @@ esp_err_t get_handler_eqc(httpd_req_t* req) {
 	char* html = "<html><body><form method=\"post\">CONFIG_L:<input name=\"l\" value=\"%s\" /><br />CONFIG_R:<input name=\"r\" value=\"%s\" /><input type=\"submit\" value=\"OK\" /></form></body></html>";
 	char data[1024] = {0};
 	sprintf(data, html, config_key_l, config_key_r);
-	httpd_resp_send(req, data, strlen(data));
+	httpd_resp_send(req, data, HTTPD_RESP_USE_STRLEN);
 	return ESP_OK;
 }
 

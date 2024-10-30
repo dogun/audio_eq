@@ -1,4 +1,5 @@
-﻿#include "eq.h"
+﻿#include "driver/gpio.h"
+#include "eq.h"
 #include "config_store.h"
 #include "eq_config.h"
 #include "http_op.h"
@@ -226,7 +227,7 @@ void wifi_deinit_softap(void) {
 	esp_netif_deinit();
 }
 
-#define WIFI_ON GPIO_NUM_23
+#define WIFI_ON GPIO_NUM_33
 
 
 void app_main(void) {
@@ -277,8 +278,13 @@ void app_main(void) {
 	gpio_set_direction(WIFI_ON, GPIO_MODE_INPUT);
 	gpio_reset_pin(GPIO_NUM_2);
 	gpio_set_direction(GPIO_NUM_2, GPIO_MODE_OUTPUT);
+	gpio_reset_pin(GPIO_NUM_16);
+	gpio_set_direction(GPIO_NUM_16, GPIO_MODE_OUTPUT);
+	gpio_reset_pin(GPIO_NUM_17);
+	gpio_set_direction(GPIO_NUM_17, GPIO_MODE_OUTPUT);
 
 	int http_started = 0;
+	int amp_enabled = 0;
 	httpd_handle_t server;
 	while (1) {
 		int gpio_level = gpio_get_level(WIFI_ON);
@@ -308,6 +314,12 @@ void app_main(void) {
 		}
 
 		vTaskDelay(500 / portTICK_PERIOD_MS);
+		if (amp_enabled == 0) {
+			gpio_set_level(GPIO_NUM_16, 1);
+			gpio_set_level(GPIO_NUM_17, 1);
+			ESP_LOGI(MAIN_TAG, "set 16 17 high");
+			amp_enabled = 1;
+		}
 	}
 }
 
