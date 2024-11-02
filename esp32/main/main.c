@@ -282,6 +282,12 @@ void app_main(void) {
 	gpio_set_direction(GPIO_NUM_16, GPIO_MODE_OUTPUT);
 	gpio_reset_pin(GPIO_NUM_17);
 	gpio_set_direction(GPIO_NUM_17, GPIO_MODE_OUTPUT);
+	gpio_reset_pin(GPIO_NUM_17);
+	gpio_set_direction(GPIO_NUM_18, GPIO_MODE_OUTPUT);
+	
+	gpio_set_level(GPIO_NUM_16, 1);
+	gpio_set_level(GPIO_NUM_17, 0);
+	gpio_set_level(GPIO_NUM_18, 0);
 
 	int http_started = 0;
 	int amp_enabled = 0;
@@ -315,9 +321,10 @@ void app_main(void) {
 
 		vTaskDelay(500 / portTICK_PERIOD_MS);
 		if (amp_enabled == 0) {
-			gpio_set_level(GPIO_NUM_16, 1);
+			gpio_set_level(GPIO_NUM_18, 1);
 			gpio_set_level(GPIO_NUM_17, 1);
-			ESP_LOGI(MAIN_TAG, "set 16 17 high");
+			gpio_set_level(GPIO_NUM_16, 0);
+			ESP_LOGI(MAIN_TAG, "set 16 17 18 high");
 			amp_enabled = 1;
 		}
 	}
