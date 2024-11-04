@@ -282,7 +282,7 @@ void app_main(void) {
 	gpio_set_direction(GPIO_NUM_16, GPIO_MODE_OUTPUT);
 	gpio_reset_pin(GPIO_NUM_17);
 	gpio_set_direction(GPIO_NUM_17, GPIO_MODE_OUTPUT);
-	gpio_reset_pin(GPIO_NUM_17);
+	gpio_reset_pin(GPIO_NUM_18);
 	gpio_set_direction(GPIO_NUM_18, GPIO_MODE_OUTPUT);
 	
 	gpio_set_level(GPIO_NUM_16, 1);
