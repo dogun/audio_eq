@@ -35,7 +35,7 @@ int main(int argc, char *argv[]) {
 			token = strtok(NULL, " ");
 		}
 		
-		printf("%.2f %.1f %.3f\n", cf, gain, q);
+		printf("%.0f %.1f %.3f\n", cf, gain, q);
 		
 	}
 	fclose(fp);
