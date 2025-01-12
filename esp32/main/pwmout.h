@@ -1,7 +1,7 @@
 /*
  * pwmout.h
  *
- *  Created on: 2022Äê6ÔÂ7ÈÕ
+ *  Created on: 2022ï¿½ï¿½6ï¿½ï¿½7ï¿½ï¿½
  *      Author: yuexu
  */
 
@@ -18,7 +18,7 @@
 
 #define LOG_TAG_PWMOUT "pwmout"
 
-static int max_duty = (int)pow(2, 10) - 1;
+#define max_duty (int)pow(2,10)-1
 
 ledc_timer_config_t pwm_timer = {
 	.duty_resolution = LEDC_TIMER_10_BIT,

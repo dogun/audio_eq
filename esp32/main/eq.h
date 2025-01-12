@@ -45,7 +45,7 @@ static inline void _biquads_x(int32_t* src, int32_t* dst, int len, t_biquad* biq
 	for (i = start; i < len; i += 2) {
 		int32_t rl = src[i];
 
-		rl = rl >> 8;
+		rl = (rl << 1) >> 8; //确认i2s飞利浦格式低7位为空
 
 		float l_s = (float)rl * PREAMPF;
 		float l_f = l_s;
@@ -55,8 +55,7 @@ static inline void _biquads_x(int32_t* src, int32_t* dst, int len, t_biquad* biq
 			l_s = l_f;
 		}
 		rl = (int32_t)l_f;
-		rl = rl << 8;
-
+		rl = (rl << 7) & 0x7FFFFFFF;
 		dst[i] = rl;
 	}
 }

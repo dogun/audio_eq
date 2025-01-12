@@ -51,8 +51,8 @@ void pre_task(int32_t* src, int32_t* dst, int len) {
 		int32_t rl = src[i];
 		int32_t rr = src[i+1];
 
-		rl = rl >> 8;
-		rr = rr >> 8;
+		rl = (rl << 1) >> 8;
+		rr = (rr << 1) >> 8;
 
 		if (test_count >= RATE) {
 			ESP_LOGI("TEST", "c0:%d c1:%d c2:%d c3:%d c4:%d c5:%d c6:%d c7:%d c8:%d c9:%d p0:%d", c0, c1, c2, c3, c4, c5, c6, c7, c8, c9, p0);
@@ -100,11 +100,10 @@ void post_task(int32_t* src, int32_t* dst, int len) {
 }
 
 void read_task() {
-	size_t bytes_read = 0;
 	while (true) {
 		xSemaphoreTake(read_sem, portMAX_DELAY);
 		int32_t* bf = get_buf();
-		i2s_read(i2s_num, (char*)bf, BUF_SIZE * sizeof(int32_t), &bytes_read, 100);
+		i2s_read(bf, BUF_SIZE * sizeof(int32_t));
 		pre_task(bf, bf, BUF_SIZE);
 		xSemaphoreGive(eq_r_sem);
 		xSemaphoreGive(eq_l_sem);
@@ -112,7 +111,6 @@ void read_task() {
 }
 
 void write_task() {
-	size_t bytes_write = 0;
 	//换算delay帧数
 	int l_f = l_delay * RATE / 1000;
 	int r_f = r_delay * RATE / 1000;
@@ -136,7 +134,7 @@ void write_task() {
 		post_task(bf, bf, BUF_SIZE);
 
 		if (l_delay == 0 && r_delay == 0) {
-			i2s_write(i2s_num, (char*)bf, BUF_SIZE * sizeof(int32_t), &bytes_write, 100);
+			i2s_write(bf, BUF_SIZE * sizeof(int32_t));
 		}else {
 			//处理delay
 			int32_t data[BUF_SIZE] = {0};
@@ -150,7 +148,7 @@ void write_task() {
 				data[i * 2] = l_val;
 				data[i * 2 + 1] = r_val;
 			}
-			i2s_write(i2s_num, (char*) data, BUF_SIZE * sizeof(int32_t), &bytes_write, 100);
+			i2s_write(data, BUF_SIZE * sizeof(int32_t));
 		}
 
 		switch_buf();
@@ -255,8 +253,7 @@ void app_main(void) {
 	ESP_LOGI(MAIN_TAG, "read maxvol config: %s", maxvol);
 
 	ESP_LOGI(MAIN_TAG, "init i2s start");
-	i2s_driver_install(i2s_num, &i2s_config, 0, NULL);
-	i2s_set_pin(i2s_num, &pin_config);
+	i2s_init_std_duplex();
 	ESP_LOGI(MAIN_TAG, "init i2s end");
 
 	ESP_LOGI(MAIN_TAG, "start eq task(read write eqx2)");
