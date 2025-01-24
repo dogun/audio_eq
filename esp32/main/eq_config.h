@@ -79,6 +79,10 @@ void _load_eq_old(char* buf, int ch) {
 		double cf = 0, gain = 0, q = 0;
 		int i = 0;
 		while ((token = strsep(&tk, " ")) != NULL) {
+			//ESP_LOGE(EQ_TAG, "token: %s, token1: %d", token, token[0]);
+			if (token[0] == ' ' || token[0] == 0) {
+				continue;
+			}
 			if (i == 0)
 				cf = strtod(token, NULL);
 			else if (i == 1)
