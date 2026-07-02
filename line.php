@@ -1,24 +1,37 @@
 <?php
 include_once('config.php');
 
-$file = @$_REQUEST['w'];
-$eq = @$_REQUEST['eq'];
+// Force file path to be within the wav directory, strip traversal
+$file = '/wav/'.basename((string)@$_REQUEST['w']);
+$eq = basename((string)@$_REQUEST['eq']);
 $channel = @$_REQUEST['channel'];
 $sample = @$_REQUEST['sample'];
-if (!$channel) $channel = 'l';
-if (!$sample) $sample = 1000;
+// Whitelist channel to prevent injection
+if ($channel !== 'l' && $channel !== 'r') $channel = 'l';
+$sample = (int)$sample;
+if ($sample <= 0) $sample = 1000;
 
 $wave = $HOME.$file;
 if (!file_exists($wave)) {
 	die('file not found');
 }
 
-$play_cmd = 'cat';
-if (strstr($wave, 'wav')) $play_cmd = $HOME.'/bin/wave';
+// Validate eq config exists within the config directory
+if ($eq && !file_exists($HOME.'/config/'.$eq.'_l.conf')) {
+	die('eq config not found');
+}
 
-$cmd = "$play_cmd $wave | $HOME/bin/line $channel $sample";
-if ($eq)
-	$cmd = "$play_cmd $wave | $HOME/bin/eq config/$eq 80 | $HOME/bin/line $channel $sample";
+$bin_wave = escapeshellarg($HOME.'/bin/wave');
+$bin_eq   = escapeshellarg($HOME.'/bin/eq');
+$bin_line = escapeshellarg($HOME.'/bin/line');
+
+$src_cmd = pathinfo($file, PATHINFO_EXTENSION) === 'wav' ? "$bin_wave ".escapeshellarg($wave) : "cat ".escapeshellarg($wave);
+
+if ($eq) {
+	$cmd = "$src_cmd | $bin_eq ".escapeshellarg('config/'.$eq)." 80 | $bin_line ".escapeshellarg($channel)." ".escapeshellarg((string)$sample);
+} else {
+	$cmd = "$src_cmd | $bin_line ".escapeshellarg($channel)." ".escapeshellarg((string)$sample);
+}
 ob_start();
 passthru($cmd);
 $ret = ob_get_clean();
