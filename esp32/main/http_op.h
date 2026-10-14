@@ -17,87 +17,198 @@
 #include <esp_http_server.h>
 #include "config_store.h"
 
-void url_decode(char* res) {
-	ESP_LOGI(HTTP_TAG, "urldecode res: %s", res);
-	int d = 0; /* whether or not the string is decoded */
+#define HTTP_EDIT_BODY_MAX (CONFIG_SIZE * 3 + 64)
+#define HTTP_EQC_BODY_MAX 256
 
-	char e_str[] = "00"; /* for a hex code */
+static int _hex_value(char c) {
+	if (c >= '0' && c <= '9') return c - '0';
+	if (c >= 'a' && c <= 'f') return c - 'a' + 10;
+	if (c >= 'A' && c <= 'F') return c - 'A' + 10;
+	return -1;
+}
 
-	while (!d) {
-		d = 1;
-		int i; /* the counter for the string */
-
-		for (i = 0; i < strlen(res); ++i) {
-			if (res[i] == '%') {
-				if (res[i + 1] == 0)
-					return;
-				if (isxdigit((int)res[i + 1]) && isxdigit((int)res[i + 2])) {
-					d = 0;
-					e_str[0] = res[i + 1];
-					e_str[1] = res[i + 2];
-					long int x = strtol(e_str, NULL, 16);
-					memmove(&res[i + 1], &res[i + 3], strlen(&res[i + 3]) + 1);
-					res[i] = x;
-				}
-			} else if (res[i] == '+') {
-				res[i] = ' ';
-			}
+static int url_decode(char* value) {
+	char* read = value;
+	char* write = value;
+	while (*read != '\0') {
+		if (*read == '+') {
+			*write++ = ' ';
+			read++;
+		} else if (*read == '%') {
+			int high = _hex_value(read[1]);
+			int low = read[1] == '\0' ? -1 : _hex_value(read[2]);
+			if (high < 0 || low < 0) return 0;
+			int decoded = (high << 4) | low;
+			if (decoded == 0) return 0;
+			*write++ = (char)decoded;
+			read += 3;
+		} else {
+			*write++ = *read++;
 		}
 	}
-	ESP_LOGI(HTTP_TAG, "urldecode res ok: %s", res);
+	*write = '\0';
+	return 1;
+}
+
+static int _form_values(char* body,
+		const char* first_name, char** first_value,
+		const char* second_name, char** second_value) {
+	char* cursor = body;
+	char* field;
+	*first_value = NULL;
+	*second_value = NULL;
+
+	while ((field = strsep(&cursor, "&")) != NULL) {
+		char* equals = strchr(field, '=');
+		if (equals == NULL) continue;
+		*equals++ = '\0';
+		if (strcmp(field, first_name) == 0) {
+			if (!url_decode(equals)) return 0;
+			*first_value = equals;
+		} else if (strcmp(field, second_name) == 0) {
+			if (!url_decode(equals)) return 0;
+			*second_value = equals;
+		}
+	}
+	return 1;
+}
+
+static esp_err_t _recv_body(httpd_req_t* req, size_t max_size, char** body) {
+	if ((size_t)req->content_len > max_size) {
+		httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "request body too large");
+		return ESP_FAIL;
+	}
+
+	char* content = malloc((size_t)req->content_len + 1);
+	if (content == NULL) {
+		httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "out of memory");
+		return ESP_ERR_NO_MEM;
+	}
+
+	size_t received = 0;
+	while (received < (size_t)req->content_len) {
+		int ret = httpd_req_recv(req, content + received,
+				(size_t)req->content_len - received);
+		if (ret <= 0) {
+			free(content);
+			if (ret == HTTPD_SOCK_ERR_TIMEOUT) httpd_resp_send_408(req);
+			return ESP_FAIL;
+		}
+		received += (size_t)ret;
+	}
+	content[received] = '\0';
+	*body = content;
+	return ESP_OK;
+}
+
+static char* _html_escape(const char* value) {
+	size_t capacity = strlen(value) * 6 + 1;
+	char* escaped = malloc(capacity);
+	if (escaped == NULL) return NULL;
+
+	char* out = escaped;
+	while (*value != '\0') {
+		const char* entity = NULL;
+		switch (*value) {
+			case '&': entity = "&amp;"; break;
+			case '<': entity = "&lt;"; break;
+			case '>': entity = "&gt;"; break;
+			case '"': entity = "&quot;"; break;
+			case '\'': entity = "&#39;"; break;
+			default: *out++ = *value++; continue;
+		}
+		size_t len = strlen(entity);
+		memcpy(out, entity, len);
+		out += len;
+		value++;
+	}
+	*out = '\0';
+	return escaped;
 }
 
 esp_err_t get_handler_edit(httpd_req_t* req) {
-	char* uri = strstr(req->uri, "=");
-
-	if (NULL == uri) {
+	char* separator = strchr(req->uri, '=');
+	if (separator == NULL) {
 		httpd_resp_send_404(req);
 		return ESP_FAIL;
 	}
 
-	uri += 1;
+	separator++;
+	size_t key_len = strcspn(separator, "&");
+	if (key_len == 0 || key_len >= NVS_KEY_NAME_MAX_SIZE) {
+		httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "config key too long");
+		return ESP_FAIL;
+	}
 
-	char config[CONFIG_SIZE] = {0};
-	read_config(uri, config, sizeof(config));
-	char* html = "<html><body><form method=\"post\"><input type=\"hidden\" name=\"k\" value=\"%s\" /><textarea name=\"eq\" style=\"width:300px;height:600px\">%s</textarea><input type=\"submit\" value=\"OK\" /></form></body></html>";
-	char data[CONFIG_SIZE + 214] = {0};
-	ESP_LOGI(HTTP_TAG, "config: %s (%d), uri: %s (%d)", config, strlen(config), uri, strlen(uri));
-	sprintf(data, html, uri, config);
-	ESP_LOGI(HTTP_TAG, "data: %s (%d)", data, strlen(data));
-	httpd_resp_send(req, data, HTTPD_RESP_USE_STRLEN);
-	ESP_LOGI(HTTP_TAG, "3");
-	return ESP_OK;
+	char key[NVS_KEY_NAME_MAX_SIZE] = {0};
+	memcpy(key, separator, key_len);
+	if (!url_decode(key) || key[0] == '\0') {
+		httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "invalid config key");
+		return ESP_FAIL;
+	}
+
+	char* config = calloc(CONFIG_SIZE, 1);
+	if (config == NULL) {
+		httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "out of memory");
+		return ESP_ERR_NO_MEM;
+	}
+	read_config(key, config, CONFIG_SIZE);
+	char* escaped_key = _html_escape(key);
+	char* escaped_config = _html_escape(config);
+	free(config);
+	if (escaped_key == NULL || escaped_config == NULL) {
+		free(escaped_key);
+		free(escaped_config);
+		httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "out of memory");
+		return ESP_ERR_NO_MEM;
+	}
+
+	httpd_resp_set_type(req, "text/html; charset=utf-8");
+	esp_err_t err = httpd_resp_send_chunk(req,
+			"<html><body><form method=\"post\"><input type=\"hidden\" name=\"k\" value=\"",
+			HTTPD_RESP_USE_STRLEN);
+	if (err == ESP_OK) err = httpd_resp_send_chunk(req, escaped_key, HTTPD_RESP_USE_STRLEN);
+	if (err == ESP_OK) err = httpd_resp_send_chunk(req,
+			"\" /><textarea name=\"eq\" style=\"width:300px;height:600px\">",
+			HTTPD_RESP_USE_STRLEN);
+	if (err == ESP_OK) err = httpd_resp_send_chunk(req, escaped_config, HTTPD_RESP_USE_STRLEN);
+	if (err == ESP_OK) err = httpd_resp_send_chunk(req,
+			"</textarea><input type=\"submit\" value=\"OK\" /></form></body></html>",
+			HTTPD_RESP_USE_STRLEN);
+	if (err == ESP_OK) err = httpd_resp_send_chunk(req, NULL, 0);
+	free(escaped_key);
+	free(escaped_config);
+	return err;
 }
 
 esp_err_t post_handler_edit(httpd_req_t* req) {
-	char content[1024] = {0};
-	int recv_size = MIN(req->content_len, sizeof(content));
-	int ret = httpd_req_recv(req, content, recv_size);
-	if (ret <= 0) {
-		if (ret == HTTPD_SOCK_ERR_TIMEOUT) {
-			httpd_resp_send_408(req);
-		}
-		return ESP_FAIL;
-	}
-	url_decode(content);
+	char* content = NULL;
+	if (_recv_body(req, HTTP_EDIT_BODY_MAX, &content) != ESP_OK) return ESP_FAIL;
 
-	char* token;
-	char* cc = (char*)content;
-	int i = 0;
 	char* config_key = NULL;
 	char* data = NULL;
-	while ((token = strsep(&cc, "=")) != NULL) {
-		if (i == 1)
-			config_key = token;
-		else if (i == 2)
-			data = token;
-		i++;
+	if (!_form_values(content, "k", &config_key, "eq", &data)
+			|| config_key == NULL || data == NULL) {
+		free(content);
+		httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "missing config key");
+		return ESP_FAIL;
 	}
-
-	char* sp = strstr(config_key, "&");
-	if (NULL != sp) sp[0] = 0;
-	if (NULL == data) data = "";
-	save_config(config_key, data);
+	if (strlen(config_key) == 0 || strlen(config_key) >= NVS_KEY_NAME_MAX_SIZE) {
+		free(content);
+		httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "config key too long");
+		return ESP_FAIL;
+	}
+	if (strlen(data) >= CONFIG_SIZE) {
+		free(content);
+		httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "EQ config too large");
+		return ESP_FAIL;
+	}
+	esp_err_t err = save_config(config_key, data);
+	free(content);
+	if (err != ESP_OK) {
+		httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "cannot save config");
+		return err;
+	}
 
 	char* resp = "OK";
 	httpd_resp_send(req, resp, HTTPD_RESP_USE_STRLEN);
@@ -109,45 +220,50 @@ esp_err_t get_handler_eqc(httpd_req_t* req) {
 	char config_key_r[64] = {0};
 	read_config(CONFIG_KEY_L, config_key_l, sizeof(config_key_l));
 	read_config(CONFIG_KEY_R, config_key_r, sizeof(config_key_r));
+	char* escaped_l = _html_escape(config_key_l);
+	char* escaped_r = _html_escape(config_key_r);
+	if (escaped_l == NULL || escaped_r == NULL) {
+		free(escaped_l);
+		free(escaped_r);
+		httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "out of memory");
+		return ESP_ERR_NO_MEM;
+	}
 	char* html = "<html><body><form method=\"post\">CONFIG_L:<input name=\"l\" value=\"%s\" /><br />CONFIG_R:<input name=\"r\" value=\"%s\" /><input type=\"submit\" value=\"OK\" /></form></body></html>";
 	char data[1024] = {0};
-	sprintf(data, html, config_key_l, config_key_r);
+	snprintf(data, sizeof(data), html, escaped_l, escaped_r);
+	free(escaped_l);
+	free(escaped_r);
+	httpd_resp_set_type(req, "text/html; charset=utf-8");
 	httpd_resp_send(req, data, HTTPD_RESP_USE_STRLEN);
 	return ESP_OK;
 }
 
 esp_err_t post_handler_eqc(httpd_req_t* req) {
-	char content[512] = {0};
-	int recv_size = MIN(req->content_len, sizeof(content));
-	int ret = httpd_req_recv(req, content, recv_size);
-	if (ret <= 0) {
-		if (ret == HTTPD_SOCK_ERR_TIMEOUT) {
-			httpd_resp_send_408(req);
-		}
+	char* content = NULL;
+	if (_recv_body(req, HTTP_EQC_BODY_MAX, &content) != ESP_OK) return ESP_FAIL;
+
+	char* l_key = NULL;
+	char* r_key = NULL;
+	if (!_form_values(content, "l", &l_key, "r", &r_key)
+			|| l_key == NULL || r_key == NULL) {
+		free(content);
+		httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "missing config key");
+		return ESP_FAIL;
+	}
+	if (strlen(l_key) == 0 || strlen(r_key) == 0
+			|| strlen(l_key) >= NVS_KEY_NAME_MAX_SIZE
+			|| strlen(r_key) >= NVS_KEY_NAME_MAX_SIZE) {
+		free(content);
+		httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "config key too long");
 		return ESP_FAIL;
 	}
 
-	url_decode(content);
-	char* token;
-	char* cc = (char*)content;
-	int i = 0;
-	char* l_key = NULL;
-	char* r_key = NULL;
-	while ((token = strsep(&cc, "=")) != NULL) {
-		ESP_LOGI(HTTP_TAG, "token:%s", token);
-		if (i == 1)
-			l_key = token;
-		else if (i == 2)
-			r_key = token;
-		i++;
-	}
-	char* sp = strstr(l_key, "&");
-	if (NULL != sp) sp[0] = 0;
-
-	//ESP_LOGI(HTTP_TAG, "config_key l: %s, r:%s", l_key, r_key);
-	if (NULL != l_key && NULL != r_key) {
-		save_config(CONFIG_KEY_L, l_key);
-		save_config(CONFIG_KEY_R, r_key);
+	esp_err_t left_err = save_config(CONFIG_KEY_L, l_key);
+	esp_err_t right_err = save_config(CONFIG_KEY_R, r_key);
+	free(content);
+	if (left_err != ESP_OK || right_err != ESP_OK) {
+		httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "cannot save config");
+		return ESP_FAIL;
 	}
 
 	char* resp = "OK";

@@ -104,6 +104,10 @@ static int _load_config(char* config_file, eq_config* eq, long* config_time, int
 	while(!feof(fp)) {
 		char* r = fgets(line, sizeof(line), fp);
 		if (r == NULL || strlen(r) == 0) continue;
+		if (*eq_len >= MAX_EQ_COUNT) {
+			fprintf(stderr, "eq config has more than %d filters, ignoring the rest: %s\n", MAX_EQ_COUNT, config_file);
+			break;
+		}
 		char* token = strtok(line, " ");
 		int i = 0;
 		while (token != NULL) {

@@ -13,6 +13,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#include "audio_sample.h"
 #include "common_config.h"
 
 #define MAX_EQ_COUNT 50
@@ -30,7 +31,7 @@ static inline void _biquads_x(int32_t* src, int32_t* dst, int len, t_biquad* biq
 static inline void _apply_biquads_r(int32_t* src, int32_t* dst, int len);
 static inline void _apply_biquads_l(int32_t* src, int32_t* dst, int len);
 
-static void _mk_biquad(float dbgain, float cf, float q, t_biquad *b);
+static int _mk_biquad(float dbgain, float cf, float q, t_biquad *b);
 
 int eq_len_r;
 int eq_len_l;
@@ -43,9 +44,7 @@ static inline void _biquads_x(int32_t* src, int32_t* dst, int len, t_biquad* biq
 	int i, di;
 
 	for (i = start; i < len; i += 2) {
-		int32_t rl = src[i];
-
-		rl = (rl << 1) >> 8; //确认i2s飞利浦格式低7位为空
+		int32_t rl = audio_i2s_to_s24(src[i]);
 
 		float l_s = (float)rl * PREAMPF;
 		float l_f = l_s;
@@ -54,9 +53,7 @@ static inline void _biquads_x(int32_t* src, int32_t* dst, int len, t_biquad* biq
 			l_f = _apply_biquads_one(l_s, &(biquad[di]));
 			l_s = l_f;
 		}
-		rl = (int32_t)l_f;
-		rl = (rl << 7) & 0x7FFFFFFF;
-		dst[i] = rl;
+		dst[i] = audio_s24_to_i2s(audio_clip_float_s24(l_f));
 	}
 }
 
@@ -88,10 +85,13 @@ static inline float _apply_biquads_one(float s, t_biquad* b) {
 /* Create a Peaking EQ Filter.
  * See 'Audio EQ Cookbook' for more information
  */
-static void _mk_biquad(float dbgain, float cf, float q, t_biquad* b) {
-  if(b == NULL) {
-	  ESP_LOGE(EQ_TAG, "biquad NULL");
-	  exit(1);
+static int _mk_biquad(float dbgain, float cf, float q, t_biquad* b) {
+  if (b == NULL || !isfinite(dbgain) || !isfinite(cf) || !isfinite(q)
+		  || cf <= 0.0f || cf >= RATE / 2.0f
+		  || q <= 0.0f || q > 1000.0f
+		  || dbgain < -120.0f || dbgain > 120.0f) {
+	  ESP_LOGE(EQ_TAG, "invalid biquad: cf=%f gain=%f q=%f", cf, dbgain, q);
+	  return 0;
   }
 
   ESP_LOGW(EQ_TAG, "make biquad: %f %f %f", cf, dbgain, q);
@@ -126,6 +126,7 @@ static void _mk_biquad(float dbgain, float cf, float q, t_biquad* b) {
   b->cf = cf;
   b->q = q;
   b->gain = dbgain;
+  return 1;
 }
 
 #endif

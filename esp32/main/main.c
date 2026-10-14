@@ -1,4 +1,6 @@
 ﻿#include "driver/gpio.h"
+#include "esp_mac.h"
+#include "audio_delay.h"
 #include "eq.h"
 #include "config_store.h"
 #include "eq_config.h"
@@ -51,8 +53,8 @@ void pre_task(int32_t* src, int32_t* dst, int len) {
 		int32_t rl = src[i];
 		int32_t rr = src[i+1];
 
-		rl = (rl << 1) >> 8;
-		rr = (rr << 1) >> 8;
+		rl = audio_i2s_to_s24(rl);
+		rr = audio_i2s_to_s24(rr);
 
 		if (test_count >= RATE) {
 			ESP_LOGI("TEST", "c0:%d c1:%d c2:%d c3:%d c4:%d c5:%d c6:%d c7:%d c8:%d c9:%d p0:%d", c0, c1, c2, c3, c4, c5, c6, c7, c8, c9, p0);
@@ -99,7 +101,7 @@ void post_task(int32_t* src, int32_t* dst, int len) {
 	if (maxvol_config == 1) maxvol(src, dst, len, -1);
 }
 
-void read_task() {
+void read_task(void*) {
 	while (true) {
 		xSemaphoreTake(read_sem, portMAX_DELAY);
 		int32_t* bf = get_buf();
@@ -110,21 +112,10 @@ void read_task() {
 	}
 }
 
-void write_task() {
-	//换算delay帧数
-	int l_f = l_delay * RATE / 1000;
-	int r_f = r_delay * RATE / 1000;
-	if (l_f > BUF_SIZE / 2) l_f = BUF_SIZE / 2;
-	if (r_f > BUF_SIZE / 2) r_f = BUF_SIZE / 2;
-	if (l_f > 0 && r_f > 0) { //取差值
-		if (l_f > r_f) {
-			l_f = l_f - r_f;
-			r_f = 0;
-		}else {
-			r_f = r_f - l_f;
-			l_f = 0;
-		}
-	}
+void write_task(void*) {
+	int l_f = 0;
+	int r_f = 0;
+	audio_resolve_relative_delays(l_delay, r_delay, RATE, BUF_SIZE / 2, &l_f, &r_f);
 
 	while (true) {
 		xSemaphoreTake(write_l_sem, portMAX_DELAY);
@@ -133,7 +124,7 @@ void write_task() {
 		int32_t* bf = get_buf();
 		post_task(bf, bf, BUF_SIZE);
 
-		if (l_delay == 0 && r_delay == 0) {
+		if (l_f == 0 && r_f == 0) {
 			i2s_write(bf, BUF_SIZE * sizeof(int32_t));
 		}else {
 			//处理delay
@@ -156,7 +147,7 @@ void write_task() {
 	}
 }
 
-void eq_l_task() {
+void eq_l_task(void*) {
 	while (true) {
 		xSemaphoreTake(eq_l_sem, portMAX_DELAY);
 		int32_t* bf = get_buf();
@@ -165,7 +156,7 @@ void eq_l_task() {
 	}
 }
 
-void eq_r_task() {
+void eq_r_task(void*) {
 	while (true) {
 		xSemaphoreTake(eq_r_sem, portMAX_DELAY);
 		int32_t* bf = get_buf();
@@ -183,13 +174,13 @@ static void wifi_event_handler(void* arg, esp_event_base_t event_base,
 	if (event_id == WIFI_EVENT_AP_STACONNECTED) {
 		wifi_event_ap_staconnected_t* event =
 				(wifi_event_ap_staconnected_t*) event_data;
-		ESP_LOGI(MAIN_TAG, "station %s join, AID=%d", (char*)event->mac,
-				event->aid);
+		ESP_LOGI(MAIN_TAG, "station " MACSTR " join, AID=%d",
+				MAC2STR(event->mac), event->aid);
 	} else if (event_id == WIFI_EVENT_AP_STADISCONNECTED) {
 		wifi_event_ap_stadisconnected_t* event =
 				(wifi_event_ap_stadisconnected_t*) event_data;
-		ESP_LOGI(MAIN_TAG, "station %s leave, AID=%d",
-				(char*)event->mac, event->aid);
+		ESP_LOGI(MAIN_TAG, "station " MACSTR " leave, AID=%d",
+				MAC2STR(event->mac), event->aid);
 	}
 }
 
@@ -279,12 +270,14 @@ void app_main(void) {
 	gpio_set_direction(GPIO_NUM_16, GPIO_MODE_OUTPUT);
 	gpio_reset_pin(GPIO_NUM_17);
 	gpio_set_direction(GPIO_NUM_17, GPIO_MODE_OUTPUT);
-	gpio_reset_pin(GPIO_NUM_18);
-	gpio_set_direction(GPIO_NUM_18, GPIO_MODE_OUTPUT);
+	if (maxvol_config != 1) {
+		gpio_reset_pin(PWM_GPIO);
+		gpio_set_direction(PWM_GPIO, GPIO_MODE_OUTPUT);
+	}
 	
 	gpio_set_level(GPIO_NUM_16, 1);
 	gpio_set_level(GPIO_NUM_17, 0);
-	gpio_set_level(GPIO_NUM_18, 0);
+	if (maxvol_config != 1) gpio_set_level(PWM_GPIO, 0);
 
 	int http_started = 0;
 	int amp_enabled = 0;
@@ -318,10 +311,10 @@ void app_main(void) {
 
 		vTaskDelay(500 / portTICK_PERIOD_MS);
 		if (amp_enabled == 0) {
-			gpio_set_level(GPIO_NUM_18, 1);
+			if (maxvol_config != 1) gpio_set_level(PWM_GPIO, 1);
 			gpio_set_level(GPIO_NUM_17, 1);
 			gpio_set_level(GPIO_NUM_16, 0);
-			ESP_LOGI(MAIN_TAG, "set 16 17 18 high");
+			ESP_LOGI(MAIN_TAG, "amplifier control enabled");
 			amp_enabled = 1;
 		}
 	}

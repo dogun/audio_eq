@@ -1,18 +1,19 @@
 /*
  * maxvol.h
  *
- *  Created on: 2022Äê6ÔÂ5ÈÕ
+ *  Created on: 2022å¹´6æœˆ5æ—¥
  *      Author: yuexu
  */
 
 #ifndef MAIN_MAXVOL_PWMOUT_H_
 #define MAIN_MAXVOL_PWMOUT_H_
 
+#include "audio_sample.h"
 #include "common_config.h"
 #include "pwmout.h"
 
 #define BIT24_MAX 0x7FFFFF
-#define STEP RATE * 2  //×î´óÒôÁ¿µÄÍ³¼ÆÖÜÆÚ£¬³ËÊıÎªÃëÊı
+#define STEP RATE * 2  //æœ€å¤§éŸ³é‡çš„ç»Ÿè®¡å‘¨æœŸï¼Œä¹˜æ•°ä¸ºç§’æ•°
 
 const static float MAX_NOW_LIMIT = BIT24_MAX / 400;
 
@@ -34,7 +35,7 @@ static inline int32_t _proc_maxvol(int32_t data) {
 
 	int32_t ret = ((float)BIT24_MAX / MAX_NOW) * data;
 
-	float pp = (float)ret / data;
+	float pp = data == 0 ? 0.0f : (float)ret / data;
 
 	if ((_logi++ % 10000) == 0) ESP_LOGI(LOG_TAG_PWMOUT, "%2.2f, ret: %d, data: %d, max_now: %d, step: %d, 24max: %d", pp, (int)ret, (int)data, (int)MAX_NOW, _step_num, (int)BIT24_MAX);
 
@@ -45,21 +46,18 @@ static inline int32_t _proc_maxvol(int32_t data) {
 
 
 /**
- * ×¢Òâ£ºÕâÖ»ÊÇÎªÁËµÃµ½Ò»¸öºÍÒôÁ¿ÎŞ¹ØµÄ×î´ó»¯µçÆ½¿ØÖÆµÄĞÅºÅ£¬Í¨¹ıpwmÊä³ö¡£
- * µ÷ÕûÆµÂÊ´ó¸Å£º RATE * 2 / BUF_SIZE (48000 * 2 / 256 = 375)
+ * æ³¨æ„ï¼šè¿™åªæ˜¯ä¸ºäº†å¾—åˆ°ä¸€ä¸ªå’ŒéŸ³é‡æ— å…³çš„æœ€å¤§åŒ–ç”µå¹³æ§åˆ¶çš„ä¿¡å·ï¼Œé€šè¿‡pwmè¾“å‡ºã€‚
+ * è°ƒæ•´é¢‘ç‡å¤§æ¦‚ï¼š RATE * 2 / BUF_SIZE (48000 * 2 / 256 = 375)
  */
 static inline void maxvol(int32_t* src, int32_t* dst, int len, int ch) {
 	int i;
 	int32_t data = 0;
-	int32_t total = 0;
+	int64_t total = 0;
 	int32_t max = 0;
 
 	for (i = 0; i < len; i += 2) {
-		int32_t rl = src[i];
-		int32_t rr = src[i+1];
-
-		rl = rl >> 8;
-		rr = rr >> 8;
+		int32_t rl = audio_i2s_to_s24(src[i]);
+		int32_t rr = audio_i2s_to_s24(src[i+1]);
 
 		if (ch == L_CODE) {
 			data = _proc_maxvol(rl);
@@ -73,7 +71,7 @@ static inline void maxvol(int32_t* src, int32_t* dst, int len, int ch) {
 		total += data;
 	}
 
-	int32_t val = max * 2 / 3 + (total * 2 / i) / 3;
+	int32_t val = max * 2 / 3 + (int32_t)((total * 2 / i) / 3);
 	float duty = (float)val / BIT24_MAX;
 	if (duty > 1) duty = 0.9;
 	pwm_set_duty(duty);

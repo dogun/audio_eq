@@ -12,7 +12,7 @@
 #include "config_store.h"
 #include "eq.h"
 
-#define CONFIG_SIZE 600
+#define CONFIG_SIZE 3900
 
 #define CONFIG_KEY_L "l_config"
 #define CONFIG_KEY_R "r_config"
@@ -56,11 +56,13 @@ void _load_eq_new(char* buf, int ch) {
 			if (ch == L_CODE) {
 				if (eq_len_l >= MAX_EQ_COUNT)
 					continue;
-				_mk_biquad(gain, cf, q, &(l_biquads[eq_len_l++]));
+				if (_mk_biquad(gain, cf, q, &(l_biquads[eq_len_l])))
+					eq_len_l++;
 			} else {
 				if (eq_len_r >= MAX_EQ_COUNT)
 					continue;
-				_mk_biquad(gain, cf, q, &(r_biquads[eq_len_r++]));
+				if (_mk_biquad(gain, cf, q, &(r_biquads[eq_len_r])))
+					eq_len_r++;
 			}
 		} else {
 			ESP_LOGW(EQ_TAG, "_load_eq_new error: %s", tk);
@@ -103,11 +105,13 @@ void _load_eq_old(char* buf, int ch) {
 			if (ch == L_CODE) {
 				if (eq_len_l >= MAX_EQ_COUNT)
 					continue;
-				_mk_biquad(gain, cf, q, &(l_biquads[eq_len_l++]));
+				if (_mk_biquad(gain, cf, q, &(l_biquads[eq_len_l])))
+					eq_len_l++;
 			} else {
 				if (eq_len_r >= MAX_EQ_COUNT)
 					continue;
-				_mk_biquad(gain, cf, q, &(r_biquads[eq_len_r++]));
+				if (_mk_biquad(gain, cf, q, &(r_biquads[eq_len_r])))
+					eq_len_r++;
 			}
 		} else {
 			ESP_LOGW(EQ_TAG, "_load_eq_old error: %s", tk);
@@ -116,9 +120,13 @@ void _load_eq_old(char* buf, int ch) {
 }
 
 void _load_eq(int ch) {
-	char buf[CONFIG_SIZE] = {0};
 	char config[64] = {0};
 	_ch2file(ch, config, sizeof(config));
+	char* buf = calloc(CONFIG_SIZE, 1);
+	if (buf == NULL) {
+		ESP_LOGE(EQ_TAG, "cannot allocate EQ config buffer");
+		return;
+	}
 	read_config(config, buf, CONFIG_SIZE);
 
 	if (strstr(buf, "Gain")) {
@@ -126,6 +134,7 @@ void _load_eq(int ch) {
 	} else {
 		_load_eq_old(buf, ch);
 	}
+	free(buf);
 }
 
 void load_eq() {

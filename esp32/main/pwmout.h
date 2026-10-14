@@ -17,6 +17,7 @@
 #include "math.h"
 
 #define LOG_TAG_PWMOUT "pwmout"
+#define PWM_GPIO GPIO_NUM_18
 
 #define max_duty (int)pow(2,10)-1
 
@@ -31,7 +32,7 @@ ledc_timer_config_t pwm_timer = {
 ledc_channel_config_t pwm_channel = {
 	.channel    = LEDC_CHANNEL_0,
 	.duty       = 0,
-	.gpio_num   = 18,
+	.gpio_num   = PWM_GPIO,
 	.speed_mode = LEDC_HIGH_SPEED_MODE,
 	.hpoint     = 0,
 	.timer_sel  = LEDC_TIMER_0,

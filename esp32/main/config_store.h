@@ -1,7 +1,7 @@
 /*
  * config_store.h
  *
- *  Created on: 2022Äê5ÔÂ20ÈÕ
+ *  Created on: 2022å¹´5æœˆ20æ—¥
  *      Author: yuexq
  */
 
@@ -42,34 +42,41 @@ typedef unsigned int size_t;
 
 void read_config(char* f, char* buf, int size) {
 	nvs_handle_t my_handle = _open_nvs();
+	if (my_handle == 0) {
+		if (size > 0) buf[0] = '\0';
+		return;
+	}
 
 	size_t len = size;
 	ESP_LOGI(CONFIG_TAG, "read data %s", f);
 	esp_err_t err = nvs_get_str(my_handle, f, buf, &len);
 	if (err != ESP_OK || len == 0) {
-		ESP_LOGE(CONFIG_TAG, "get data error:%s, %s, %d", f, esp_err_to_name(err), len);
+		ESP_LOGE(CONFIG_TAG, "get data error:%s, %s, %u",
+				f, esp_err_to_name(err), (unsigned int)len);
 		nvs_close(my_handle);
 		return;
 	}
 	nvs_close(my_handle);
 }
 
-void save_config(char* file, char* config) {
+esp_err_t save_config(char* file, char* config) {
 	nvs_handle_t my_handle = _open_nvs();
+	if (my_handle == 0) return ESP_FAIL;
 	ESP_LOGI(CONFIG_TAG, "write data %s %s", file, config);
 	esp_err_t err = nvs_set_str(my_handle, file, config);
 	if (err != ESP_OK) {
 		ESP_LOGE(CONFIG_TAG, "set data error:%s, %d", file, err);
 		nvs_close(my_handle);
-		return;
+		return err;
 	}
 	err = nvs_commit(my_handle);
 	if (err != ESP_OK) {
 		ESP_LOGE(CONFIG_TAG, "commit data error:%s, %d", file, err);
 		nvs_close(my_handle);
-		return;
+		return err;
 	}
 	nvs_close(my_handle);
+	return ESP_OK;
 }
 
 #endif /* MAIN_CONFIG_STORE_H_ */

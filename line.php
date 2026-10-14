@@ -28,7 +28,7 @@ $bin_line = escapeshellarg($HOME.'/bin/line');
 $src_cmd = pathinfo($file, PATHINFO_EXTENSION) === 'wav' ? "$bin_wave ".escapeshellarg($wave) : "cat ".escapeshellarg($wave);
 
 if ($eq) {
-	$cmd = "$src_cmd | $bin_eq ".escapeshellarg('config/'.$eq)." 80 | $bin_line ".escapeshellarg($channel)." ".escapeshellarg((string)$sample);
+	$cmd = "$src_cmd | $bin_eq ".escapeshellarg('config/'.$eq)." -1 24 | $bin_line ".escapeshellarg($channel)." ".escapeshellarg((string)$sample);
 } else {
 	$cmd = "$src_cmd | $bin_line ".escapeshellarg($channel)." ".escapeshellarg((string)$sample);
 }

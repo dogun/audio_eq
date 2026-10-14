@@ -46,7 +46,7 @@ $bin_record = escapeshellarg($HOME.'/bin/record');
 $src_cmd = pathinfo($pfile, PATHINFO_EXTENSION) === 'wav' ? "$bin_wave ".escapeshellarg($pwave) : "cat ".escapeshellarg($pwave);
 
 if ($eq) {
-	$play_cmd = "$src_cmd | $bin_eq ".escapeshellarg('config/'.$eq)." 80 | $bin_play ".escapeshellarg($hw);
+	$play_cmd = "$src_cmd | $bin_eq ".escapeshellarg('config/'.$eq)." -1 24 | $bin_play ".escapeshellarg($hw);
 } else {
 	$play_cmd = "$src_cmd | $bin_play ".escapeshellarg($hw);
 }
