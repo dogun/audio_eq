@@ -1,193 +1,144 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdint.h>
 
+typedef uint8_t  uint8;
+typedef uint16_t uint16;
+typedef uint32_t uint32;
+typedef int32_t  sint32;
 
-typedef unsigned char  uchar;
-typedef unsigned char  uint8;
-typedef unsigned short uint16;
-typedef unsigned int  uint32;
-typedef char           sint8;
-typedef short          sint16;
-typedef int            sint32;
-typedef float          fp32;
-typedef double         fp64;
- 
-typedef enum BOOLEAN {
-	TRUE  = 1,
-	FALSE = 0
-} boolean;
-
-
-//wave文件头
+// WAV 文件头
 typedef struct WaveHeader {
-	uint8 riff[4];             //资源交换文件标志
-	uint32 size;               //从下个地址开始到文件结尾的字节数
-	uint8 wave_flag[4];        //wave文件标识
-	uint8 fmt[4];              //波形格式标识
-	uint32 fmt_len;            //过滤字节(一般为00000010H)
-	uint16 tag;                //格式种类，值为1时，表示PCM线性编码
-	uint16 channels;           //通道数，单声道为1，双声道为2
-	uint32 samp_freq;          //采样频率
-	uint32 byte_rate;          //数据传输率 (每秒字节＝采样频率×每个样本字节数)
-	uint16 block_align;        //块对齐字节数 = channles * bit_samp / 8
-	uint16 bit_samp;           //bits per sample (又称量化位数)
+	uint8  riff[4];             // 资源交换文件标志
+	uint32 size;                // 从下个地址开始到文件结尾的字节数
+	uint8  wave_flag[4];        // wave 文件标识
+	uint8  fmt[4];              // 波形格式标识
+	uint32 fmt_len;             // fmt 块长度
+	uint16 tag;                 // 格式种类，值为 1 时表示 PCM 线性编码
+	uint16 channels;            // 通道数
+	uint32 samp_freq;           // 采样频率
+	uint32 byte_rate;           // 每秒字节数
+	uint16 block_align;         // 块对齐字节数
+	uint16 bit_samp;            // 每采样位数
 } wave_header_t;
- 
+
 typedef struct WaveStruct {
-	FILE* fp;                  //file pointer
-	wave_header_t header;      //header
-	uint8 data_flag[4];        //数据标识符
-	uint32 length;             //采样数据总数
-	uint32* pData;             //data
+	FILE* fp;                   // 文件指针
+	wave_header_t header;       // 文件头
+	uint8 data_flag[4];         // 数据标识符
+	uint32 length;              // 数据长度
 } wave_t;
-wave_t wave;
+
+static wave_t wave;
+
+static int _read_exact(void* dst, size_t size, FILE* fp) {
+	return fread(dst, 1, size, fp) == size;
+}
+
+static int _wave_error(const char* what) {
+	fprintf(stderr, "wave: %s\n", what);
+	if (wave.fp != NULL) {
+		fclose(wave.fp);
+		wave.fp = NULL;
+	}
+	return 0;
+}
 
 /*
- * open *.wav file
+ * 打开并解析 *.wav 文件。成功返回 1，失败返回 0。
  */
-void WaveOpen(char* file) {
-	uchar temp = 0;
-	uint8 read_bytes = 0;
-	char* channel_mappings[] = {NULL,"mono","stereo"};
-	uint32 total_time = 0;
-	struct PlayTime        //播放时间
-	{
-		uint8 hour;
-		uint8 minute;
-		uint8 second;
-	} play_time;
- 
-	if(NULL == (wave.fp=fopen(file, "rb")))                               /* open file */
-	{
-		printf("file %s open failure!\n", file);	
+int WaveOpen(char* file) {
+	memset(&wave, 0, sizeof(wave));
+
+	wave.fp = fopen(file, "rb");
+	if (wave.fp == NULL) {
+		fprintf(stderr, "wave: cannot open %s\n", file);
+		return 0;
 	}
- 
-	/* read heade information */
-	if(4 != fread(wave.header.riff, sizeof(uint8), 4, wave.fp))           /* RIFF chunk */
-	{
-		printf("read riff error!\n");
-		return;
+
+	if (!_read_exact(wave.header.riff, 4, wave.fp)) return _wave_error("truncated RIFF header");
+	if (!_read_exact(&wave.header.size, 4, wave.fp)) return _wave_error("truncated RIFF size");
+	if (!_read_exact(wave.header.wave_flag, 4, wave.fp)) return _wave_error("truncated WAVE header");
+	if (!_read_exact(wave.header.fmt, 4, wave.fp)) return _wave_error("truncated fmt header");
+	if (!_read_exact(&wave.header.fmt_len, 4, wave.fp)) return _wave_error("truncated fmt length");
+	if (!_read_exact(&wave.header.tag, 2, wave.fp)) return _wave_error("truncated fmt tag");
+	if (!_read_exact(&wave.header.channels, 2, wave.fp)) return _wave_error("truncated channels");
+	if (!_read_exact(&wave.header.samp_freq, 4, wave.fp)) return _wave_error("truncated sample rate");
+	if (!_read_exact(&wave.header.byte_rate, 4, wave.fp)) return _wave_error("truncated byte rate");
+	if (!_read_exact(&wave.header.block_align, 2, wave.fp)) return _wave_error("truncated block align");
+	if (!_read_exact(&wave.header.bit_samp, 2, wave.fp)) return _wave_error("truncated bit depth");
+
+	if (memcmp(wave.header.riff, "RIFF", 4) != 0) return _wave_error("not a RIFF file");
+	if (memcmp(wave.header.wave_flag, "WAVE", 4) != 0) return _wave_error("not a WAVE file");
+	if (wave.header.tag != 1) return _wave_error("only PCM WAV is supported");
+	if (wave.header.channels != 1 && wave.header.channels != 2) return _wave_error("only 1 or 2 channels are supported");
+	if (wave.header.bit_samp != 32) return _wave_error("only 32-bit samples are supported");
+	if (wave.header.byte_rate == 0) return _wave_error("invalid byte rate");
+
+	// 跳过 fmt 块中超出标准 16 字节的部分
+	uint32 remaining;
+	if (wave.header.fmt_len >= 16) {
+		remaining = wave.header.fmt_len - 16;
+	} else {
+		return _wave_error("invalid fmt chunk length");
 	}
-	if(1 != fread(&wave.header.size, sizeof(uint32), 1, wave.fp))         /* SIZE : from here to file end */
-	{
-		printf("read size error!\n");
-		return;
+	while (remaining-- > 0) {
+		if (fgetc(wave.fp) == EOF) return _wave_error("truncated fmt chunk");
 	}
-	if(4 != fread(wave.header.wave_flag, sizeof(uint8), 4, wave.fp))      /* wave file flag */
-	{
-		printf("read wave_flag error!\n");
-		return;
+
+	// 定位 "data" 块，遇到文件结尾立即停止
+	for (;;) {
+		int c = fgetc(wave.fp);
+		if (c == EOF) return _wave_error("no data chunk found");
+		if (c != 'd') continue;
+		wave.data_flag[0] = 'd';
+		if (!_read_exact(&wave.data_flag[1], 3, wave.fp)) return _wave_error("truncated data chunk");
+		if (memcmp(wave.data_flag, "data", 4) != 0) return _wave_error("unexpected chunk");
+		if (!_read_exact(&wave.length, 4, wave.fp)) return _wave_error("truncated data length");
+		break;
 	}
-	if(4 != fread(wave.header.fmt, sizeof(uint8), 4, wave.fp))             /* fmt chunk */
-	{
-		printf("read fmt error!\n");
-		return;
-	}
-	if(1 != fread(&wave.header.fmt_len, sizeof(uint32), 1, wave.fp))       /* fmt length */
-	{
-		printf("read fmt_len error!\n");
-		return;
-	}
-	if(1 != fread(&wave.header.tag, sizeof(uint16), 1, wave.fp))           /* tag : PCM or not */
-	{
-		printf("read tag error!\n");
-		return;
-	}
-	if(1 != fread(&wave.header.channels, sizeof(uint16), 1, wave.fp))      /* channels */
-	{
-		printf("read channels error!\n");
-		return;
-	}
-	if(1 != fread(&wave.header.samp_freq, sizeof(uint32), 1, wave.fp))      /* samp_freq */
-	{
-		printf("read samp_freq error!\n");
-		return;
-	}
-	if(1 != fread(&wave.header.byte_rate, sizeof(uint32), 1, wave.fp))      /* byte_rate : decode how many bytes per second */
-	{                                                                       /* byte_rate = samp_freq * bit_samp */
-		printf("read byte_rate error!\n");
-		return;
-	}
-	if(1 != fread(&wave.header.block_align, sizeof(uint16), 1, wave.fp))       /* quantize bytes for per samp point */
-	{
-		printf("read byte_samp error!\n");
-		return;
-	}
-	if(1 != fread(&wave.header.bit_samp, sizeof(uint16), 1, wave.fp))        /* quantize bits for per samp point */
-	{                                                                        /* bit_samp = byte_samp * 8 */
-		printf("read bit_samp error!\n");
-		return;
-	}
- 
-	/* jump to "data" for reading data */
-	do
-	{
-		fread(&temp, sizeof(uchar), 1, wave.fp);
-	}
-	while('d' != temp);
-	wave.data_flag[0] = temp;
-	if(3 != fread(&wave.data_flag[1], sizeof(uint8), 3, wave.fp))                 /* data chunk */
-	{
-		printf("read header data error!\n");
-		return;
-	}
-	if(1 != fread(&wave.length, sizeof(uint32), 1, wave.fp))                  /* data length */
-	{
-		printf("read length error!\n");
-	}
- 
-	/* jduge data chunk flag */
-	if(strncmp(wave.data_flag, "data", 4) != 0)
-	{
-		printf("error : cannot read data! %s\n", wave.data_flag);
-		return;
-	}
- 
-	total_time = wave.length / wave.header.byte_rate;
-	play_time.hour = (uint8)(total_time / 3600);
-	play_time.minute = (uint8)((total_time / 60) % 60);
-	play_time.second = (uint8)(total_time % 60);
-	/* printf file header information */
-	fprintf(stderr, "%s %dHz %dbit, DataLen: %d, Rate: %d, Length: %2d:%2d:%2d\n",
-		   channel_mappings[wave.header.channels],             //声道
-		   wave.header.samp_freq,                              //采样频率
-		   wave.header.bit_samp,                               //每个采样点的量化位数
-           wave.length,
-		   wave.header.byte_rate,
-		   play_time.hour,play_time.minute,play_time.second);
- 
- 
-	//fclose(wave.fp);                                               /* close wave file */
+
+	uint32 total_time = wave.length / wave.header.byte_rate;
+	uint8 hour = (uint8)(total_time / 3600);
+	uint8 minute = (uint8)((total_time / 60) % 60);
+	uint8 second = (uint8)(total_time % 60);
+
+	fprintf(stderr, "%s %uHz %ubit, DataLen: %u, Rate: %u, Length: %02u:%02u:%02u\n",
+			wave.header.channels == 1 ? "mono" : "stereo",
+			wave.header.samp_freq,
+			wave.header.bit_samp,
+			wave.length,
+			wave.header.byte_rate,
+			hour, minute, second);
+
+	return 1;
 }
 
 #define WAVE_BUFFER_SIZE 2
 static sint32 buffer[WAVE_BUFFER_SIZE] = {0};
 
 /*
- * get wave data 
+ * 读取一组波形数据
  */
 int GetWave(void) {
-	uint16 p = 0;
- 
-	p = fread(buffer, sizeof(sint32), WAVE_BUFFER_SIZE, wave.fp);
-	if(!p) {
-		return 0;
-	} else {
-		//fprintf(stderr, "--%d %d\n", buffer[0], buffer[1]);
-		return p;
-	}
+	return fread(buffer, sizeof(sint32), WAVE_BUFFER_SIZE, wave.fp);
 }
 
-void main(int argc, char* argv[]) {
-	char* wav;
+int main(int argc, char* argv[]) {
 	if (argc < 2) {
 		fprintf(stderr, "usage wave file\n");
-		exit(1);
+		return EXIT_FAILURE;
 	}
-	WaveOpen(argv[1]);
+	if (!WaveOpen(argv[1])) {
+		return EXIT_FAILURE;
+	}
+
 	int r;
 	while ((r = GetWave()) != 0) {
 		fwrite(buffer, sizeof(sint32), r, stdout);
 	}
+
+	fclose(wave.fp);
+	return EXIT_SUCCESS;
 }

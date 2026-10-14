@@ -32,7 +32,23 @@ void _load_eq_new(char* buf, int ch) {
 		if (strlen(tk) == 0)
 			continue;
 
-		if (!strstr(tk, "Fc") || !strstr(tk, "Gain") || !strstr(tk, "Q")) continue;
+		if (!strstr(tk, "Fc") || !strstr(tk, "Gain") || !strstr(tk, "Q")) {
+			char* end = NULL;
+			double delay = strtod(tk, &end);
+			while (*end == ' ' || *end == '\t' || *end == '\r') end++;
+			if (end != tk && *end == '\0') {
+				if (ch == L_CODE) {
+					l_delay = delay;
+					ESP_LOGI(EQ_TAG, "l delay: %f", delay);
+				} else {
+					r_delay = delay;
+					ESP_LOGI(EQ_TAG, "r delay: %f", delay);
+				}
+			} else {
+				ESP_LOGW(EQ_TAG, "_load_eq_new error: %s", tk);
+			}
+			continue;
+		}
 
 		char* token = strtok(tk, " ");
 		double cf = 0, gain = 0, q = 0;
