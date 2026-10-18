@@ -17,7 +17,7 @@
 #include "common_config.h"
 
 #define MAX_EQ_COUNT 50
-#define PREAMPF powf(10.0f, -1 / 20.0f)
+#define PREAMPF 0.89125094f
 
 typedef struct t_biquad t_biquad;
 struct t_biquad {

@@ -23,6 +23,9 @@ static int _step_num = 0;
 
 int _logi = 0;
 
+static float _maxvol_gain = 0.0f;
+static float _maxvol_gain_max = 0.0f;
+
 static inline int32_t _proc_maxvol(int32_t data) {
 	int32_t r_data = abs(data);
 	if (_step_num < STEP) {
@@ -33,11 +36,16 @@ static inline int32_t _proc_maxvol(int32_t data) {
 		MAX_NOW = MAX_NOW_LIMIT;
 	}
 
-	int32_t ret = ((float)BIT24_MAX / MAX_NOW) * data;
+	if (MAX_NOW != _maxvol_gain_max) {
+		_maxvol_gain_max = MAX_NOW;
+		_maxvol_gain = (float)BIT24_MAX / MAX_NOW;
+	}
+	int32_t ret = (int32_t)(_maxvol_gain * data);
 
-	float pp = data == 0 ? 0.0f : (float)ret / data;
-
-	if ((_logi++ % 10000) == 0) ESP_LOGI(LOG_TAG_PWMOUT, "%2.2f, ret: %d, data: %d, max_now: %d, step: %d, 24max: %d", pp, (int)ret, (int)data, (int)MAX_NOW, _step_num, (int)BIT24_MAX);
+	if ((_logi++ % 10000) == 0) {
+		float pp = data == 0 ? 0.0f : (float)ret / data;
+		ESP_LOGD(LOG_TAG_PWMOUT, "%2.2f, ret: %d, data: %d, max_now: %d, step: %d, 24max: %d", pp, (int)ret, (int)data, (int)MAX_NOW, _step_num, (int)BIT24_MAX);
+	}
 
 	//if (r_data < BIT24_MAX / 10000) ret = 0;
 

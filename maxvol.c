@@ -9,6 +9,7 @@
 static float MAX_NOW = 1;
 static float MIN_NOW = -1;
 static int _step_num = 0;
+static int _logi = 0;
 
 static inline int32_t _proc_maxvol(int32_t data) {
 	if (_step_num < STEP) {
@@ -27,7 +28,8 @@ static inline int32_t _proc_maxvol(int32_t data) {
 	if (data > 0) ret = ((float)BIT24_MAX / MAX_NOW) * data;
 	else ret = ((float)BIT24_MIN / MIN_NOW) * data;
 
-	printf("o: %d, r: %d, max: %f, min: %f\n", data, ret, MAX_NOW, MIN_NOW);
+	if ((_logi++ % 10000) == 0)
+		printf("o: %d, r: %d, max: %f, min: %f\n", data, ret, MAX_NOW, MIN_NOW);
 
 	return ret;
 }

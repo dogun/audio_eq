@@ -281,7 +281,7 @@ void app_main(void) {
 
 	int http_started = 0;
 	int amp_enabled = 0;
-	httpd_handle_t server;
+	httpd_handle_t server = NULL;
 	while (1) {
 		int gpio_level = gpio_get_level(WIFI_ON);
 		//ESP_LOGI(MAIN_TAG, "T:[%d] ", gpio_level);
