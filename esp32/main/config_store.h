@@ -13,6 +13,7 @@
 #include "esp_system.h"
 #include "nvs_flash.h"
 #include "nvs.h"
+#include <string.h>
 
 #define STORAGE_NAMESPACE "storage"
 
@@ -48,7 +49,7 @@ void read_config(char* f, char* buf, int size) {
 	}
 
 	size_t len = size;
-	ESP_LOGI(CONFIG_TAG, "read data %s", f);
+	ESP_LOGD(CONFIG_TAG, "read data %s", f);
 	esp_err_t err = nvs_get_str(my_handle, f, buf, &len);
 	if (err != ESP_OK || len == 0) {
 		ESP_LOGE(CONFIG_TAG, "get data error:%s, %s, %u",
@@ -62,7 +63,7 @@ void read_config(char* f, char* buf, int size) {
 esp_err_t save_config(char* file, char* config) {
 	nvs_handle_t my_handle = _open_nvs();
 	if (my_handle == 0) return ESP_FAIL;
-	ESP_LOGI(CONFIG_TAG, "write data %s %s", file, config);
+	ESP_LOGI(CONFIG_TAG, "write %s (%u bytes)", file, (unsigned int)strlen(config));
 	esp_err_t err = nvs_set_str(my_handle, file, config);
 	if (err != ESP_OK) {
 		ESP_LOGE(CONFIG_TAG, "set data error:%s, %d", file, err);

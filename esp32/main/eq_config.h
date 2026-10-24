@@ -14,22 +14,20 @@
 
 #define CONFIG_SIZE 3900
 
-#define CONFIG_KEY_L "l_config"
-#define CONFIG_KEY_R "r_config"
+#define EQ_KEY_L "eq_l"
+#define EQ_KEY_R "eq_r"
+#define SWAP_KEY "swap_lr"
 
-void _ch2file(int ch, char* config, int size) {
-	if (ch == L_CODE) {
-		read_config(CONFIG_KEY_L, config, size);
-	}else {
-		read_config(CONFIG_KEY_R, config, size);
-	}
-}
+/* Set by the HTTP handlers after a config save; consumed by the audio task. */
+static volatile int eq_reload_requested = 0;
 
 void _load_eq_new(char* buf, int ch) {
 	char* tk;
 	char* bbf = buf;
 	while ((tk = strsep(&bbf, "\n")) != NULL) {
 		if (strlen(tk) == 0)
+			continue;
+		if (strstr(tk, "None") != NULL)
 			continue;
 
 		if (!strstr(tk, "Fc") || !strstr(tk, "Gain") || !strstr(tk, "Q")) {
@@ -39,13 +37,13 @@ void _load_eq_new(char* buf, int ch) {
 			if (end != tk && *end == '\0') {
 				if (ch == L_CODE) {
 					l_delay = delay;
-					ESP_LOGI(EQ_TAG, "l delay: %f", delay);
+					ESP_LOGD(EQ_TAG, "l delay: %f", delay);
 				} else {
 					r_delay = delay;
-					ESP_LOGI(EQ_TAG, "r delay: %f", delay);
+					ESP_LOGD(EQ_TAG, "r delay: %f", delay);
 				}
 			} else {
-				ESP_LOGW(EQ_TAG, "_load_eq_new error: %s", tk);
+				ESP_LOGD(EQ_TAG, "_load_eq_new error: %s", tk);
 			}
 			continue;
 		}
@@ -63,10 +61,10 @@ void _load_eq_new(char* buf, int ch) {
 		if (i == 1) { //只有一个数字
 			if (ch == L_CODE) {
 				l_delay = cf;
-				ESP_LOGI(EQ_TAG, "l delay: %f", cf);
+				ESP_LOGD(EQ_TAG, "l delay: %f", cf);
 			}else {
 				r_delay = cf;
-				ESP_LOGI(EQ_TAG, "r delay: %f", cf);
+				ESP_LOGD(EQ_TAG, "r delay: %f", cf);
 			}
 		} else if(i > 11) {
 			if (ch == L_CODE) {
@@ -81,7 +79,7 @@ void _load_eq_new(char* buf, int ch) {
 					eq_len_r++;
 			}
 		} else {
-			ESP_LOGW(EQ_TAG, "_load_eq_new error: %s", tk);
+			ESP_LOGD(EQ_TAG, "_load_eq_new error: %s", tk);
 		}
 	}
 }
@@ -112,10 +110,10 @@ void _load_eq_old(char* buf, int ch) {
 		if (i == 1) { //只有一个数字
 			if (ch == L_CODE) {
 				l_delay = cf;
-				ESP_LOGI(EQ_TAG, "l delay: %f", cf);
+				ESP_LOGD(EQ_TAG, "l delay: %f", cf);
 			}else {
 				r_delay = cf;
-				ESP_LOGI(EQ_TAG, "r delay: %f", cf);
+				ESP_LOGD(EQ_TAG, "r delay: %f", cf);
 			}
 		} else if (i == 3) {
 			if (ch == L_CODE) {
@@ -130,20 +128,18 @@ void _load_eq_old(char* buf, int ch) {
 					eq_len_r++;
 			}
 		} else {
-			ESP_LOGW(EQ_TAG, "_load_eq_old error: %s", tk);
+			ESP_LOGD(EQ_TAG, "_load_eq_old error: %s", tk);
 		}
 	}
 }
 
 void _load_eq(int ch) {
-	char config[64] = {0};
-	_ch2file(ch, config, sizeof(config));
 	char* buf = calloc(CONFIG_SIZE, 1);
 	if (buf == NULL) {
 		ESP_LOGE(EQ_TAG, "cannot allocate EQ config buffer");
 		return;
 	}
-	read_config(config, buf, CONFIG_SIZE);
+	read_config(ch == L_CODE ? EQ_KEY_L : EQ_KEY_R, buf, CONFIG_SIZE);
 
 	if (strstr(buf, "Gain")) {
 		_load_eq_new(buf, ch);
@@ -154,8 +150,15 @@ void _load_eq(int ch) {
 }
 
 void load_eq() {
+	eq_len_l = 0;
+	eq_len_r = 0;
+	l_delay = 0;
+	r_delay = 0;
 	_load_eq(L_CODE);
 	_load_eq(R_CODE);
+	char swap[8] = {0};
+	read_config(SWAP_KEY, swap, sizeof(swap));
+	channel_swap = (swap[0] != '\0' && atoi(swap) != 0);
 }
 
 #endif /* MAIN_EQ_CONFIG_H_ */

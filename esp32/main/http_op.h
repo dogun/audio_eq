@@ -18,7 +18,6 @@
 #include "config_store.h"
 
 #define HTTP_EDIT_BODY_MAX (CONFIG_SIZE * 3 + 64)
-#define HTTP_EQC_BODY_MAX 256
 
 static int _hex_value(char c) {
 	if (c >= '0' && c <= '9') return c - '0';
@@ -126,26 +125,13 @@ static char* _html_escape(const char* value) {
 	return escaped;
 }
 
-esp_err_t get_handler_edit(httpd_req_t* req) {
-	char* separator = strchr(req->uri, '=');
-	if (separator == NULL) {
-		httpd_resp_send_404(req);
-		return ESP_FAIL;
-	}
+static char* _eq_key(int ch) {
+	return ch == L_CODE ? EQ_KEY_L : EQ_KEY_R;
+}
 
-	separator++;
-	size_t key_len = strcspn(separator, "&");
-	if (key_len == 0 || key_len >= NVS_KEY_NAME_MAX_SIZE) {
-		httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "config key too long");
-		return ESP_FAIL;
-	}
-
-	char key[NVS_KEY_NAME_MAX_SIZE] = {0};
-	memcpy(key, separator, key_len);
-	if (!url_decode(key) || key[0] == '\0') {
-		httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "invalid config key");
-		return ESP_FAIL;
-	}
+static esp_err_t _get_eq_handler(httpd_req_t* req, int ch) {
+	char* key = _eq_key(ch);
+	int swap = channel_swap;
 
 	char* config = calloc(CONFIG_SIZE, 1);
 	if (config == NULL) {
@@ -153,6 +139,7 @@ esp_err_t get_handler_edit(httpd_req_t* req) {
 		return ESP_ERR_NO_MEM;
 	}
 	read_config(key, config, CONFIG_SIZE);
+
 	char* escaped_key = _html_escape(key);
 	char* escaped_config = _html_escape(config);
 	free(config);
@@ -163,13 +150,22 @@ esp_err_t get_handler_edit(httpd_req_t* req) {
 		return ESP_ERR_NO_MEM;
 	}
 
+	const char* title = ch == L_CODE ? "Left EQ" : "Right EQ";
 	httpd_resp_set_type(req, "text/html; charset=utf-8");
-	esp_err_t err = httpd_resp_send_chunk(req,
-			"<html><body><form method=\"post\"><input type=\"hidden\" name=\"k\" value=\"",
+	esp_err_t err = httpd_resp_send_chunk(req, "<html><body><h3>",
 			HTTPD_RESP_USE_STRLEN);
+	if (err == ESP_OK) err = httpd_resp_send_chunk(req, title, HTTPD_RESP_USE_STRLEN);
+	if (err == ESP_OK) err = httpd_resp_send_chunk(req, " (", HTTPD_RESP_USE_STRLEN);
 	if (err == ESP_OK) err = httpd_resp_send_chunk(req, escaped_key, HTTPD_RESP_USE_STRLEN);
 	if (err == ESP_OK) err = httpd_resp_send_chunk(req,
-			"\" /><textarea name=\"eq\" style=\"width:300px;height:600px\">",
+			")</h3><form method=\"post\"><p><label>"
+			"<input type=\"checkbox\" name=\"swap\" value=\"1\"",
+			HTTPD_RESP_USE_STRLEN);
+	if (err == ESP_OK && swap) err = httpd_resp_send_chunk(req,
+			" checked", HTTPD_RESP_USE_STRLEN);
+	if (err == ESP_OK) err = httpd_resp_send_chunk(req,
+			" /> Swap L/R</label></p><textarea name=\"eq\" "
+			"style=\"width:300px;height:600px\">",
 			HTTPD_RESP_USE_STRLEN);
 	if (err == ESP_OK) err = httpd_resp_send_chunk(req, escaped_config, HTTPD_RESP_USE_STRLEN);
 	if (err == ESP_OK) err = httpd_resp_send_chunk(req,
@@ -181,121 +177,80 @@ esp_err_t get_handler_edit(httpd_req_t* req) {
 	return err;
 }
 
-esp_err_t post_handler_edit(httpd_req_t* req) {
+static esp_err_t _post_eq_handler(httpd_req_t* req, int ch) {
+	char* key = _eq_key(ch);
+
 	char* content = NULL;
 	if (_recv_body(req, HTTP_EDIT_BODY_MAX, &content) != ESP_OK) return ESP_FAIL;
 
-	char* config_key = NULL;
 	char* data = NULL;
-	if (!_form_values(content, "k", &config_key, "eq", &data)
-			|| config_key == NULL || data == NULL) {
+	char* swap_value = NULL;
+	if (!_form_values(content, "eq", &data, "swap", &swap_value) || data == NULL) {
 		free(content);
-		httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "missing config key");
+		httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "missing EQ config");
 		return ESP_FAIL;
 	}
-	if (strlen(config_key) == 0 || strlen(config_key) >= NVS_KEY_NAME_MAX_SIZE) {
-		free(content);
-		httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "config key too long");
-		return ESP_FAIL;
-	}
+	int swap = swap_value != NULL && atoi(swap_value) != 0;
 	if (strlen(data) >= CONFIG_SIZE) {
 		free(content);
 		httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "EQ config too large");
 		return ESP_FAIL;
 	}
-	esp_err_t err = save_config(config_key, data);
+
+	esp_err_t err = save_config(key, data);
+	if (err == ESP_OK) err = save_config(SWAP_KEY, swap ? "1" : "0");
 	free(content);
 	if (err != ESP_OK) {
 		httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "cannot save config");
 		return err;
 	}
+	eq_reload_requested = 1;
 
-	char* resp = "OK";
-	httpd_resp_send(req, resp, HTTPD_RESP_USE_STRLEN);
+	httpd_resp_send(req, "OK", HTTPD_RESP_USE_STRLEN);
 	return ESP_OK;
 }
 
-esp_err_t get_handler_eqc(httpd_req_t* req) {
-	char config_key_l[64] = {0};
-	char config_key_r[64] = {0};
-	read_config(CONFIG_KEY_L, config_key_l, sizeof(config_key_l));
-	read_config(CONFIG_KEY_R, config_key_r, sizeof(config_key_r));
-	char* escaped_l = _html_escape(config_key_l);
-	char* escaped_r = _html_escape(config_key_r);
-	if (escaped_l == NULL || escaped_r == NULL) {
-		free(escaped_l);
-		free(escaped_r);
-		httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "out of memory");
-		return ESP_ERR_NO_MEM;
-	}
-	char* html = "<html><body><form method=\"post\">CONFIG_L:<input name=\"l\" value=\"%s\" /><br />CONFIG_R:<input name=\"r\" value=\"%s\" /><input type=\"submit\" value=\"OK\" /></form></body></html>";
-	char data[1024] = {0};
-	snprintf(data, sizeof(data), html, escaped_l, escaped_r);
-	free(escaped_l);
-	free(escaped_r);
-	httpd_resp_set_type(req, "text/html; charset=utf-8");
-	httpd_resp_send(req, data, HTTPD_RESP_USE_STRLEN);
-	return ESP_OK;
+esp_err_t get_handler_eq_l(httpd_req_t* req) {
+	return _get_eq_handler(req, L_CODE);
 }
 
-esp_err_t post_handler_eqc(httpd_req_t* req) {
-	char* content = NULL;
-	if (_recv_body(req, HTTP_EQC_BODY_MAX, &content) != ESP_OK) return ESP_FAIL;
-
-	char* l_key = NULL;
-	char* r_key = NULL;
-	if (!_form_values(content, "l", &l_key, "r", &r_key)
-			|| l_key == NULL || r_key == NULL) {
-		free(content);
-		httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "missing config key");
-		return ESP_FAIL;
-	}
-	if (strlen(l_key) == 0 || strlen(r_key) == 0
-			|| strlen(l_key) >= NVS_KEY_NAME_MAX_SIZE
-			|| strlen(r_key) >= NVS_KEY_NAME_MAX_SIZE) {
-		free(content);
-		httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "config key too long");
-		return ESP_FAIL;
-	}
-
-	esp_err_t left_err = save_config(CONFIG_KEY_L, l_key);
-	esp_err_t right_err = save_config(CONFIG_KEY_R, r_key);
-	free(content);
-	if (left_err != ESP_OK || right_err != ESP_OK) {
-		httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "cannot save config");
-		return ESP_FAIL;
-	}
-
-	char* resp = "OK";
-	httpd_resp_send(req, resp, HTTPD_RESP_USE_STRLEN);
-	return ESP_OK;
+esp_err_t post_handler_eq_l(httpd_req_t* req) {
+	return _post_eq_handler(req, L_CODE);
 }
 
-httpd_uri_t uri_get_c = {
-		.uri = "/eqc",
+esp_err_t get_handler_eq_r(httpd_req_t* req) {
+	return _get_eq_handler(req, R_CODE);
+}
+
+esp_err_t post_handler_eq_r(httpd_req_t* req) {
+	return _post_eq_handler(req, R_CODE);
+}
+
+httpd_uri_t uri_get_eq_l = {
+		.uri = "/eq_l",
 		.method = HTTP_GET,
-		.handler = get_handler_eqc,
+		.handler = get_handler_eq_l,
 		.user_ctx = NULL
 };
 
-httpd_uri_t uri_post_c = {
-		.uri = "/eqc",
+httpd_uri_t uri_post_eq_l = {
+		.uri = "/eq_l",
 		.method = HTTP_POST,
-		.handler = post_handler_eqc,
+		.handler = post_handler_eq_l,
 		.user_ctx = NULL
 };
 
-httpd_uri_t uri_get_eq = {
-		.uri = "/edit",
+httpd_uri_t uri_get_eq_r = {
+		.uri = "/eq_r",
 		.method = HTTP_GET,
-		.handler = get_handler_edit,
+		.handler = get_handler_eq_r,
 		.user_ctx = NULL
 };
 
-httpd_uri_t uri_post_eq = {
-		.uri = "/edit",
+httpd_uri_t uri_post_eq_r = {
+		.uri = "/eq_r",
 		.method = HTTP_POST,
-		.handler = post_handler_edit,
+		.handler = post_handler_eq_r,
 		.user_ctx = NULL
 };
 
@@ -305,10 +260,10 @@ httpd_handle_t start_webserver(void) {
 	httpd_handle_t server = NULL;
 
 	if (httpd_start(&server, &config) == ESP_OK) {
-		httpd_register_uri_handler(server, &uri_get_c);
-		httpd_register_uri_handler(server, &uri_post_c);
-		httpd_register_uri_handler(server, &uri_get_eq);
-		httpd_register_uri_handler(server, &uri_post_eq);
+		httpd_register_uri_handler(server, &uri_get_eq_l);
+		httpd_register_uri_handler(server, &uri_post_eq_l);
+		httpd_register_uri_handler(server, &uri_get_eq_r);
+		httpd_register_uri_handler(server, &uri_post_eq_r);
 
 	}
 	return server;

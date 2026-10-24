@@ -5,7 +5,6 @@
 
 #include "../esp32/main/audio_delay.h"
 #include "../esp32/main/audio_sample.h"
-#include "../esp32/main/stereo2mono.h"
 
 static void test_round_trip(int32_t sample) {
 	int32_t encoded = audio_s24_to_i2s(sample);
@@ -27,16 +26,6 @@ int main(void) {
 	assert(audio_clip_float_s24(NAN) == 0);
 	assert(audio_clip_float_s24(INFINITY) == AUDIO_S24_MAX);
 	assert(audio_clip_float_s24(-INFINITY) == AUDIO_S24_MIN);
-
-	int32_t stereo[] = {
-		audio_s24_to_i2s(-1), audio_s24_to_i2s(-1),
-		audio_s24_to_i2s(AUDIO_S24_MIN), audio_s24_to_i2s(AUDIO_S24_MAX)
-	};
-	stereo2mono(stereo, stereo, 4);
-	assert(audio_i2s_to_s24(stereo[0]) == -1);
-	assert(audio_i2s_to_s24(stereo[1]) == -1);
-	assert(audio_i2s_to_s24(stereo[2]) == 0);
-	assert(audio_i2s_to_s24(stereo[3]) == 0);
 
 	int left_frames = -1;
 	int right_frames = -1;

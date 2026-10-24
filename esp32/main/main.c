@@ -6,9 +6,6 @@
 #include "eq_config.h"
 #include "http_op.h"
 #include "i2s_config.h"
-#include "maxvol_pwmout.h"
-#include "pwmout.h"
-#include "stereo2mono.h"
 
 
 typedef unsigned int size_t;
@@ -17,8 +14,6 @@ typedef unsigned int size_t;
 static int32_t data1[BUF_SIZE] = {0};
 static int32_t data2[BUF_SIZE] = {0};
 static int buf_index = 1;
-static int stereo2mono_config = 0;
-static int maxvol_config = 0;
 
 static SemaphoreHandle_t read_sem;
 static SemaphoreHandle_t write_l_sem;
@@ -44,8 +39,7 @@ static SemaphoreHandle_t eq_r_sem;
 	int p = 1;
 #endif
 
-void pre_task(int32_t* src, int32_t* dst, int len) {
-	if (stereo2mono_config == 1) stereo2mono(src, dst, len);
+void pre_task(int32_t* src, int len) {
 #ifdef TEST_1
 	//For Test
 	int i;
@@ -97,16 +91,12 @@ void switch_buf() {
 	else buf_index = 1;
 }
 
-void post_task(int32_t* src, int32_t* dst, int len) {
-	if (maxvol_config == 1) maxvol(src, dst, len, -1);
-}
-
 void read_task(void*) {
 	while (true) {
 		xSemaphoreTake(read_sem, portMAX_DELAY);
 		int32_t* bf = get_buf();
 		i2s_read(bf, BUF_SIZE * sizeof(int32_t));
-		pre_task(bf, bf, BUF_SIZE);
+		pre_task(bf, BUF_SIZE);
 		xSemaphoreGive(eq_r_sem);
 		xSemaphoreGive(eq_l_sem);
 	}
@@ -121,8 +111,17 @@ void write_task(void*) {
 		xSemaphoreTake(write_l_sem, portMAX_DELAY);
 		xSemaphoreTake(write_r_sem, portMAX_DELAY);
 
+		/* The EQ tasks already processed this buffer with this swap state. */
+		int buffer_swap = channel_swap;
+
+		if (eq_reload_requested) {
+			eq_reload_requested = 0;
+			load_eq();
+			audio_resolve_relative_delays(l_delay, r_delay, RATE, BUF_SIZE / 2, &l_f, &r_f);
+			ESP_LOGI(MAIN_TAG, "EQ reloaded: L=%d R=%d", eq_len_l, eq_len_r);
+		}
+
 		int32_t* bf = get_buf();
-		post_task(bf, bf, BUF_SIZE);
 
 		if (l_f == 0 && r_f == 0) {
 			i2s_write(bf, BUF_SIZE * sizeof(int32_t));
@@ -131,13 +130,19 @@ void write_task(void*) {
 			int32_t data[BUF_SIZE] = {0};
 			//先把需要delay的声道的剩余数据，从上一个buf中取出来，再续现在的buf
 			int32_t* sec_bf = get_sec_buf();
+			int l_slot = buffer_swap ? 1 : 0;
+			int r_slot = buffer_swap ? 0 : 1;
 			for (int i = 0; i < BUF_SIZE / 2; ++i) {
 				int l_index = i - l_f;
 				int r_index = i - r_f;
-				int32_t l_val = (l_index >= 0) ? bf[l_index * 2] : sec_bf[BUF_SIZE + l_index * 2];
-				int32_t r_val = (r_index >= 0) ? bf[r_index * 2 + 1] : sec_bf[BUF_SIZE + r_index * 2 + 1];
-				data[i * 2] = l_val;
-				data[i * 2 + 1] = r_val;
+				int32_t l_val = (l_index >= 0)
+						? bf[l_index * 2 + l_slot]
+						: sec_bf[BUF_SIZE + l_index * 2 + l_slot];
+				int32_t r_val = (r_index >= 0)
+						? bf[r_index * 2 + r_slot]
+						: sec_bf[BUF_SIZE + r_index * 2 + r_slot];
+				data[i * 2 + l_slot] = l_val;
+				data[i * 2 + r_slot] = r_val;
 			}
 			i2s_write(data, BUF_SIZE * sizeof(int32_t));
 		}
@@ -217,6 +222,7 @@ void wifi_deinit_softap(void) {
 }
 
 #define WIFI_ON GPIO_NUM_33
+#define AMP_CTRL_GPIO GPIO_NUM_18
 
 
 void app_main(void) {
@@ -227,21 +233,6 @@ void app_main(void) {
 	ESP_LOGI(MAIN_TAG, "read eq config");
 	load_eq();
 	ESP_LOGI(MAIN_TAG, "read eq config ok");
-
-	ESP_LOGI(MAIN_TAG, "read stereo2mono config");
-	char s2m[16] = {0};
-	read_config("s2m", s2m, sizeof(s2m));
-	if (strlen(s2m) > 0) stereo2mono_config = atoi(s2m);
-	ESP_LOGI(MAIN_TAG, "read stereo2mono config: %s", s2m);
-
-	ESP_LOGI(MAIN_TAG, "read maxvol config");
-	char maxvol[16] = {0};
-	read_config("maxvol", maxvol, sizeof(maxvol));
-	if (strlen(maxvol) > 0) maxvol_config = atoi(maxvol);
-	if (maxvol_config == 1) {
-		config_pwm();
-	}
-	ESP_LOGI(MAIN_TAG, "read maxvol config: %s", maxvol);
 
 	ESP_LOGI(MAIN_TAG, "init i2s start");
 	i2s_init_std_duplex();
@@ -270,14 +261,12 @@ void app_main(void) {
 	gpio_set_direction(GPIO_NUM_16, GPIO_MODE_OUTPUT);
 	gpio_reset_pin(GPIO_NUM_17);
 	gpio_set_direction(GPIO_NUM_17, GPIO_MODE_OUTPUT);
-	if (maxvol_config != 1) {
-		gpio_reset_pin(PWM_GPIO);
-		gpio_set_direction(PWM_GPIO, GPIO_MODE_OUTPUT);
-	}
+	gpio_reset_pin(AMP_CTRL_GPIO);
+	gpio_set_direction(AMP_CTRL_GPIO, GPIO_MODE_OUTPUT);
 	
 	gpio_set_level(GPIO_NUM_16, 1);
 	gpio_set_level(GPIO_NUM_17, 0);
-	if (maxvol_config != 1) gpio_set_level(PWM_GPIO, 0);
+	gpio_set_level(AMP_CTRL_GPIO, 0);
 
 	int http_started = 0;
 	int amp_enabled = 0;
@@ -311,7 +300,7 @@ void app_main(void) {
 
 		vTaskDelay(500 / portTICK_PERIOD_MS);
 		if (amp_enabled == 0) {
-			if (maxvol_config != 1) gpio_set_level(PWM_GPIO, 1);
+			gpio_set_level(AMP_CTRL_GPIO, 1);
 			gpio_set_level(GPIO_NUM_17, 1);
 			gpio_set_level(GPIO_NUM_16, 0);
 			ESP_LOGI(MAIN_TAG, "amplifier control enabled");

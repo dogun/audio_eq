@@ -39,6 +39,8 @@ static t_biquad r_biquads[MAX_EQ_COUNT];
 static t_biquad l_biquads[MAX_EQ_COUNT];
 static float r_delay = 0;
 static float l_delay = 0;
+/* When set, eq_l applies to slot 1 and eq_r to slot 0. */
+static volatile int channel_swap = 0;
 
 static inline void _biquads_x(int32_t* src, int32_t* dst, int len, t_biquad* biquad, int start, int eqline) {
 	int i, di;
@@ -58,11 +60,11 @@ static inline void _biquads_x(int32_t* src, int32_t* dst, int len, t_biquad* biq
 }
 
 static inline void _apply_biquads_l(int32_t* src, int32_t* dst, int len) {
-	_biquads_x(src, dst, len, l_biquads, L_CODE, eq_len_l);
+	_biquads_x(src, dst, len, l_biquads, channel_swap ? R_CODE : L_CODE, eq_len_l);
 }
 
 static inline void _apply_biquads_r(int32_t* src, int32_t* dst, int len) {
-	_biquads_x(src, dst, len, r_biquads, R_CODE, eq_len_r);
+	_biquads_x(src, dst, len, r_biquads, channel_swap ? L_CODE : R_CODE, eq_len_r);
 }
 
 static inline float _apply_biquads_one(float s, t_biquad* b) {
@@ -94,7 +96,7 @@ static int _mk_biquad(float dbgain, float cf, float q, t_biquad* b) {
 	  return 0;
   }
 
-  ESP_LOGW(EQ_TAG, "make biquad: %f %f %f", cf, dbgain, q);
+  ESP_LOGD(EQ_TAG, "make biquad: %f %f %f", cf, dbgain, q);
   float A = powf(10.0, dbgain / 40.0);
   float omega = 2.0 * 3.14159265358979323846 * cf / RATE;
   float sn = sinf(omega);
