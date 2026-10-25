@@ -17,6 +17,7 @@
 #define EQ_KEY_L "eq_l"
 #define EQ_KEY_R "eq_r"
 #define SWAP_KEY "swap_lr"
+#define LOUD_KEY "loudness"
 
 /* Set by the HTTP handlers after a config save; consumed by the audio task. */
 static volatile int eq_reload_requested = 0;
@@ -159,6 +160,49 @@ void load_eq() {
 	char swap[8] = {0};
 	read_config(SWAP_KEY, swap, sizeof(swap));
 	channel_swap = (swap[0] != '\0' && atoi(swap) != 0);
+
+	char loud[64] = {0};
+	read_config(LOUD_KEY, loud, sizeof(loud));
+	int loud_en = 0;
+	float loud_bass = LOUDNESS_DEFAULT_BASS_DB;
+	float loud_treble = LOUDNESS_DEFAULT_TREBLE_DB;
+	float loud_ref = LOUDNESS_DEFAULT_REF_DBFS;
+	float loud_range = LOUDNESS_DEFAULT_RANGE_DB;
+	float loud_gate = LOUDNESS_DEFAULT_GATE_DBFS;
+	if (loud[0] != '\0') {
+		char* cursor = loud;
+		char* token;
+		int field = 0;
+		while (field < 6 && (token = strsep(&cursor, ",")) != NULL) {
+			switch (field) {
+				case 0: loud_en = atoi(token); break;
+				case 1: loud_bass = atof(token); break;
+				case 2: loud_treble = atof(token); break;
+				case 3: loud_ref = atof(token); break;
+				case 4: loud_range = atof(token); break;
+				case 5: loud_gate = atof(token); break;
+			}
+			field++;
+		}
+	}
+	if (!isfinite(loud_bass) || loud_bass < 0.0f) loud_bass = 0.0f;
+	if (loud_bass > 12.0f) loud_bass = 12.0f;
+	if (!isfinite(loud_treble) || loud_treble < 0.0f) loud_treble = 0.0f;
+	if (loud_treble > 12.0f) loud_treble = 12.0f;
+	if (!isfinite(loud_ref) || loud_ref < -60.0f) loud_ref = -60.0f;
+	if (loud_ref > -6.0f) loud_ref = -6.0f;
+	if (!isfinite(loud_range) || loud_range < 10.0f) loud_range = 10.0f;
+	if (loud_range > 60.0f) loud_range = 60.0f;
+	if (!isfinite(loud_gate) || loud_gate < -90.0f) loud_gate = -90.0f;
+	if (loud_gate > -40.0f) loud_gate = -40.0f;
+	if (loud_gate >= loud_ref) loud_gate = loud_ref - 1.0f;
+	loudness_enabled = loud_en != 0;
+	loudness_bass_max_db = loud_bass;
+	loudness_treble_max_db = loud_treble;
+	loudness_ref_db = loud_ref;
+	loudness_range_db = loud_range;
+	loudness_gate_db = loud_gate;
+	_loudness_reset();
 }
 
 #endif /* MAIN_EQ_CONFIG_H_ */

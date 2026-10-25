@@ -17,7 +17,7 @@
 #include <esp_http_server.h>
 #include "config_store.h"
 
-#define HTTP_EDIT_BODY_MAX (CONFIG_SIZE * 3 + 64)
+#define HTTP_EDIT_BODY_MAX (CONFIG_SIZE * 3 + 256)
 
 static int _hex_value(char c) {
 	if (c >= '0' && c <= '9') return c - '0';
@@ -49,24 +49,26 @@ static int url_decode(char* value) {
 	return 1;
 }
 
-static int _form_values(char* body,
-		const char* first_name, char** first_value,
-		const char* second_name, char** second_value) {
+typedef struct {
+	const char* name;
+	char* value;
+} form_field_t;
+
+static int _form_parse(char* body, form_field_t* fields, size_t count) {
 	char* cursor = body;
 	char* field;
-	*first_value = NULL;
-	*second_value = NULL;
+	for (size_t i = 0; i < count; ++i) fields[i].value = NULL;
 
 	while ((field = strsep(&cursor, "&")) != NULL) {
 		char* equals = strchr(field, '=');
 		if (equals == NULL) continue;
 		*equals++ = '\0';
-		if (strcmp(field, first_name) == 0) {
-			if (!url_decode(equals)) return 0;
-			*first_value = equals;
-		} else if (strcmp(field, second_name) == 0) {
-			if (!url_decode(equals)) return 0;
-			*second_value = equals;
+		for (size_t i = 0; i < count; ++i) {
+			if (strcmp(field, fields[i].name) == 0) {
+				if (!url_decode(equals)) return 0;
+				fields[i].value = equals;
+				break;
+			}
 		}
 	}
 	return 1;
@@ -132,6 +134,12 @@ static char* _eq_key(int ch) {
 static esp_err_t _get_eq_handler(httpd_req_t* req, int ch) {
 	char* key = _eq_key(ch);
 	int swap = channel_swap;
+	int loud = loudness_enabled;
+	float max_bass = loudness_bass_max_db;
+	float max_treble = loudness_treble_max_db;
+	float ref_db = loudness_ref_db;
+	float range_db = loudness_range_db;
+	float gate_db = loudness_gate_db;
 
 	char* config = calloc(CONFIG_SIZE, 1);
 	if (config == NULL) {
@@ -157,16 +165,21 @@ static esp_err_t _get_eq_handler(httpd_req_t* req, int ch) {
 	if (err == ESP_OK) err = httpd_resp_send_chunk(req, title, HTTPD_RESP_USE_STRLEN);
 	if (err == ESP_OK) err = httpd_resp_send_chunk(req, " (", HTTPD_RESP_USE_STRLEN);
 	if (err == ESP_OK) err = httpd_resp_send_chunk(req, escaped_key, HTTPD_RESP_USE_STRLEN);
-	if (err == ESP_OK) err = httpd_resp_send_chunk(req,
-			")</h3><form method=\"post\"><p><label>"
-			"<input type=\"checkbox\" name=\"swap\" value=\"1\"",
-			HTTPD_RESP_USE_STRLEN);
-	if (err == ESP_OK && swap) err = httpd_resp_send_chunk(req,
-			" checked", HTTPD_RESP_USE_STRLEN);
-	if (err == ESP_OK) err = httpd_resp_send_chunk(req,
-			" /> Swap L/R</label></p><textarea name=\"eq\" "
-			"style=\"width:300px;height:600px\">",
-			HTTPD_RESP_USE_STRLEN);
+	char controls[1280];
+	snprintf(controls, sizeof(controls),
+			"</h3><form method=\"post\">"
+			"<p><label><input type=\"checkbox\" name=\"swap\" value=\"1\"%s /> Swap L/R</label></p>"
+			"<p><label><input type=\"checkbox\" name=\"loud\" value=\"1\"%s /> Loudness</label></p>"
+			"<p>Max bass <input type=\"number\" name=\"bass\" min=\"0\" max=\"12\" step=\"0.5\" value=\"%.1f\" /> dB</p>"
+			"<p>Max treble <input type=\"number\" name=\"treble\" min=\"0\" max=\"12\" step=\"0.5\" value=\"%.1f\" /> dB</p>"
+			"<p>Ref level <input type=\"number\" name=\"ref\" min=\"-60\" max=\"-6\" step=\"1\" value=\"%.1f\" /> dBFS</p>"
+			"<p>Range <input type=\"number\" name=\"range\" min=\"10\" max=\"60\" step=\"1\" value=\"%.1f\" /> dB</p>"
+			"<p>Gate <input type=\"number\" name=\"gate\" min=\"-90\" max=\"-40\" step=\"1\" value=\"%.1f\" /> dBFS</p>"
+			"<textarea name=\"eq\" style=\"width:300px;height:600px\">",
+			swap ? " checked" : "",
+			loud ? " checked" : "",
+			max_bass, max_treble, ref_db, range_db, gate_db);
+	if (err == ESP_OK) err = httpd_resp_send_chunk(req, controls, HTTPD_RESP_USE_STRLEN);
 	if (err == ESP_OK) err = httpd_resp_send_chunk(req, escaped_config, HTTPD_RESP_USE_STRLEN);
 	if (err == ESP_OK) err = httpd_resp_send_chunk(req,
 			"</textarea><input type=\"submit\" value=\"OK\" /></form></body></html>",
@@ -183,22 +196,48 @@ static esp_err_t _post_eq_handler(httpd_req_t* req, int ch) {
 	char* content = NULL;
 	if (_recv_body(req, HTTP_EDIT_BODY_MAX, &content) != ESP_OK) return ESP_FAIL;
 
-	char* data = NULL;
-	char* swap_value = NULL;
-	if (!_form_values(content, "eq", &data, "swap", &swap_value) || data == NULL) {
+	form_field_t fields[] = {
+		{"eq", NULL}, {"swap", NULL}, {"loud", NULL},
+		{"bass", NULL}, {"treble", NULL},
+		{"ref", NULL}, {"range", NULL}, {"gate", NULL}
+	};
+	if (!_form_parse(content, fields, sizeof(fields) / sizeof(fields[0]))
+			|| fields[0].value == NULL) {
 		free(content);
 		httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "missing EQ config");
 		return ESP_FAIL;
 	}
-	int swap = swap_value != NULL && atoi(swap_value) != 0;
+	char* data = fields[0].value;
+	int swap = fields[1].value != NULL && atoi(fields[1].value) != 0;
+	int loud = fields[2].value != NULL && atoi(fields[2].value) != 0;
+	float bass = fields[3].value != NULL ? atof(fields[3].value) : loudness_bass_max_db;
+	float treble = fields[4].value != NULL ? atof(fields[4].value) : loudness_treble_max_db;
+	float ref_db = fields[5].value != NULL ? atof(fields[5].value) : loudness_ref_db;
+	float range_db = fields[6].value != NULL ? atof(fields[6].value) : loudness_range_db;
+	float gate_db = fields[7].value != NULL ? atof(fields[7].value) : loudness_gate_db;
+	if (!isfinite(bass) || bass < 0.0f) bass = 0.0f;
+	if (bass > 12.0f) bass = 12.0f;
+	if (!isfinite(treble) || treble < 0.0f) treble = 0.0f;
+	if (treble > 12.0f) treble = 12.0f;
+	if (!isfinite(ref_db) || ref_db < -60.0f) ref_db = -60.0f;
+	if (ref_db > -6.0f) ref_db = -6.0f;
+	if (!isfinite(range_db) || range_db < 10.0f) range_db = 10.0f;
+	if (range_db > 60.0f) range_db = 60.0f;
+	if (!isfinite(gate_db) || gate_db < -90.0f) gate_db = -90.0f;
+	if (gate_db > -40.0f) gate_db = -40.0f;
+	if (gate_db >= ref_db) gate_db = ref_db - 1.0f;
 	if (strlen(data) >= CONFIG_SIZE) {
 		free(content);
 		httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "EQ config too large");
 		return ESP_FAIL;
 	}
 
+	char loud_cfg[64];
+	snprintf(loud_cfg, sizeof(loud_cfg), "%d,%.1f,%.1f,%.1f,%.1f,%.1f",
+			loud, bass, treble, ref_db, range_db, gate_db);
 	esp_err_t err = save_config(key, data);
 	if (err == ESP_OK) err = save_config(SWAP_KEY, swap ? "1" : "0");
+	if (err == ESP_OK) err = save_config(LOUD_KEY, loud_cfg);
 	free(content);
 	if (err != ESP_OK) {
 		httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "cannot save config");

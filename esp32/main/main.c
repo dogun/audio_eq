@@ -40,6 +40,7 @@ static SemaphoreHandle_t eq_r_sem;
 #endif
 
 void pre_task(int32_t* src, int len) {
+	loudness_update(src, len);
 #ifdef TEST_1
 	//For Test
 	int i;
